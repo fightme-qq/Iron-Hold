@@ -300,7 +300,7 @@ export class UIScene extends Phaser.Scene {
     );
     this.panelLayer.add(this.roundedRect(764, y, 260, 54, 0x132022, 0.88, 8, 0x2c4240, 0.78));
     this.panelLayer.add(this.add.image(794, y + 27, AssetKeys.UIIcons, iconFrames.baseHp).setDisplaySize(28, 28));
-    this.panelLayer.add(this.add.text(826, y + 10, 'Win: survive wave 5', this.textStyle('#b9f27c', 14, 170, true)));
+    this.panelLayer.add(this.add.text(826, y + 10, 'Win: destroy enemy base', this.textStyle('#b9f27c', 14, 180, true)));
     this.panelLayer.add(this.add.text(826, y + 30, 'Lose: base or tank falls', this.textStyle('#ffb49f', 14, 180, true)));
   }
 

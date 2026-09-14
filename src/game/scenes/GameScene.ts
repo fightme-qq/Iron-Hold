@@ -78,6 +78,8 @@ export class GameScene extends Phaser.Scene {
   private playerHpBack!: Phaser.GameObjects.Rectangle;
   private playerHpFill!: Phaser.GameObjects.Rectangle;
   private enemyBase!: Phaser.GameObjects.Image;
+  private enemyBaseHpBack!: Phaser.GameObjects.Rectangle;
+  private enemyBaseHpFill!: Phaser.GameObjects.Rectangle;
   private turretBase?: Phaser.GameObjects.Image;
   private turretBarrel?: Phaser.GameObjects.Image;
   private enemies!: Phaser.Physics.Arcade.Group;
@@ -100,6 +102,7 @@ export class GameScene extends Phaser.Scene {
   private baseHp: number = defenseBalance.initialBaseHp;
   private maxBaseHp: number = defenseBalance.initialBaseHp;
   private playerHp: number = defenseBalance.player.maxHp;
+  private enemyBaseHp: number = defenseBalance.enemyBaseHp;
   private parts: number = defenseBalance.initialParts;
   private upgradeLevels: Record<UpgradeId, number> = {
     'tank-damage': 0,
@@ -158,6 +161,7 @@ export class GameScene extends Phaser.Scene {
     this.baseHp = defenseBalance.initialBaseHp;
     this.maxBaseHp = defenseBalance.initialBaseHp;
     this.playerHp = defenseBalance.player.maxHp;
+    this.enemyBaseHp = defenseBalance.enemyBaseHp;
     this.parts = defenseBalance.initialParts;
     this.upgradeLevels = {
       'tank-damage': 0,
@@ -286,6 +290,8 @@ export class GameScene extends Phaser.Scene {
     this.enemyBase = this.add
       .image(defenseBalance.world.width / 2, 260, AssetKeys.DefenseObjects, 1)
       .setDisplaySize(124, 124);
+    this.enemyBaseHpBack = this.add.rectangle(this.enemyBase.x, this.enemyBase.y - 82, 104, 9, 0x101820, 0.82).setStrokeStyle(1, 0xffd2c8, 0.45);
+    this.enemyBaseHpFill = this.add.rectangle(this.enemyBase.x - 52, this.enemyBase.y - 82, 104, 6, 0xff6b4a, 0.96).setOrigin(0, 0.5);
     this.add.text(this.enemyBase.x, this.enemyBase.y + 74, 'ENEMY BASE', {
       fontFamily: 'Trebuchet MS, Arial, sans-serif',
       fontSize: '14px',
@@ -510,6 +516,7 @@ export class GameScene extends Phaser.Scene {
 
     this.baseRing.setScale(1 + Math.sin(this.elapsedMs / 260) * 0.018);
     this.baseCore.setRotation(Math.sin(this.elapsedMs / 480) * 0.015);
+    this.updateEnemyBaseHpBar();
     this.player.setDepth(20000);
     this.playerBarrel.setDepth(20001);
     this.playerHpBack.setDepth(20002);
@@ -600,6 +607,10 @@ export class GameScene extends Phaser.Scene {
         continue;
       }
 
+      if (this.tryHitEnemyBase(bullet)) {
+        continue;
+      }
+
       if (this.tryHitRelicBunker(bullet)) {
         continue;
       }
@@ -638,6 +649,44 @@ export class GameScene extends Phaser.Scene {
     }
 
     return false;
+  }
+
+  private tryHitEnemyBase(bullet: Phaser.Physics.Arcade.Image): boolean {
+    const bulletActor = this.bulletActors.get(bullet);
+    if (!bulletActor || bulletActor.owner === 'enemy' || this.phase === 'won' || this.phase === 'lost') {
+      return false;
+    }
+
+    const path = new Phaser.Geom.Line(bulletActor.previousX, bulletActor.previousY, bullet.x, bullet.y);
+    const hit = Phaser.Geom.Intersects.GetLineToCircle(path, new Phaser.Geom.Circle(this.enemyBase.x, this.enemyBase.y, 68));
+    if (hit.length === 0 && Phaser.Math.Distance.Between(bullet.x, bullet.y, this.enemyBase.x, this.enemyBase.y) > 68) {
+      return false;
+    }
+
+    this.damageEnemyBase(bulletActor.damage);
+    this.destroyBullet(bullet);
+    return true;
+  }
+
+  private damageEnemyBase(damage: number): void {
+    this.enemyBaseHp = Math.max(0, this.enemyBaseHp - damage);
+    this.flashAt(this.enemyBase.x, this.enemyBase.y, 0xff6b4a, 40);
+    this.cameras.main.shake(70, 0.003);
+    this.updateEnemyBaseHpBar();
+
+    if (this.enemyBaseHp > 0) {
+      this.status = `Enemy base hit: ${this.enemyBaseHp}/${defenseBalance.enemyBaseHp} HP.`;
+      this.publishHud();
+      return;
+    }
+
+    this.phase = 'won';
+    this.status = 'Enemy base destroyed. Sector cleared.';
+    this.addSmoke(this.enemyBase.x, this.enemyBase.y, true);
+    this.enemyBase.setTint(0x4a4a4a).setAlpha(0.72);
+    this.clearCombatActors();
+    eventBus.emit(GameEvents.RunStateChanged, { phase: 'won' });
+    this.publishHud();
   }
 
   private tryHitRelicBunker(bullet: Phaser.Physics.Arcade.Image): boolean {
@@ -687,12 +736,9 @@ export class GameScene extends Phaser.Scene {
     this.publishHud();
   }
 
-  private updateDrops(time: number): void {
-    for (const [drop, actor] of this.dropActors) {
-      drop.setRotation(drop.rotation + 0.05);
-      if (time > actor.expiresAt) {
-        this.destroyDrop(drop);
-      }
+  private updateDrops(_time: number): void {
+    for (const drop of this.dropActors.keys()) {
+      drop.setRotation(drop.rotation + 0.025);
     }
   }
 
@@ -1087,8 +1133,9 @@ export class GameScene extends Phaser.Scene {
       }
       this.flashAt(drop.x, drop.y, 0x58e070, 22);
     } else {
-      this.parts += actor.value;
-      this.status = `Collected ${actor.value} parts.`;
+      const gained = actor.value * defenseBalance.partsPerCollectible;
+      this.parts += gained;
+      this.status = `Collected ${gained} parts.`;
       this.flashAt(drop.x, drop.y, 0xf4d35e, 20);
     }
     this.destroyDrop(drop);
@@ -1180,8 +1227,15 @@ export class GameScene extends Phaser.Scene {
     this.dropActors.set(drop, {
       kind,
       value,
-      expiresAt: this.time.now + defenseBalance.partDespawnMs,
+      expiresAt: Number.POSITIVE_INFINITY,
     });
+  }
+
+  private updateEnemyBaseHpBar(): void {
+    const hpRatio = Phaser.Math.Clamp(this.enemyBaseHp / defenseBalance.enemyBaseHp, 0, 1);
+    this.enemyBaseHpBack.setVisible(this.enemyBaseHp > 0);
+    this.enemyBaseHpFill.setVisible(this.enemyBaseHp > 0);
+    this.enemyBaseHpFill.setDisplaySize(104 * hpRatio, 6);
   }
 
   private addSmoke(x: number, y: number, orange: boolean): void {

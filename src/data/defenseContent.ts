@@ -33,11 +33,12 @@ export type EnemyStage = {
 export const defenseBalance = {
   maxWaves: 5,
   initialBaseHp: 100,
+  enemyBaseHp: 36,
   initialParts: 0,
+  partsPerCollectible: 10,
   enemyReachDamage: 12,
   baseHpBonusStep: 20,
   baseHpBonusParts: 1,
-  partDespawnMs: 9000,
   player: {
     maxHp: 5,
     speed: 230,
