@@ -226,6 +226,7 @@ export class GameScene extends Phaser.Scene {
     playerHp: number;
     parts: number;
     bulletCount: number;
+    upgrades: Record<UpgradeId, number>;
   } {
     return {
       elapsedMs: this.elapsedMs,
@@ -235,6 +236,7 @@ export class GameScene extends Phaser.Scene {
       playerHp: this.playerHp,
       parts: this.parts,
       bulletCount: this.bulletActors.size,
+      upgrades: { ...this.upgradeLevels },
     };
   }
 
@@ -939,8 +941,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   private handleUpgradeRequested(payload: { id: string }): void {
-    if (this.phase !== 'intermission') {
-      this.status = 'Upgrades are available between waves.';
+    if (this.phase === 'won' || this.phase === 'lost') {
+      this.status = 'Start a new run to buy upgrades.';
       this.publishHud();
       return;
     }

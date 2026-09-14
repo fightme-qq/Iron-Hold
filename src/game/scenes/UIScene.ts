@@ -426,7 +426,7 @@ export class UIScene extends Phaser.Scene {
     this.panelLayer.add(this.roundedRect(margin, y, width - margin * 2, 132, 0x132022, 0.94, 8, 0x2c4240, 0.9));
     this.panelLayer.add(this.add.image(margin + 36, y + 38, AssetKeys.UIIcons, tab === 'tank' ? iconFrames.tank : iconFrames.base).setDisplaySize(44, 44));
     this.panelLayer.add(this.add.text(margin + 72, y + 19, tab === 'tank' ? 'Tank Bay' : 'Base Workshop', this.textStyle('#f7d95b', 17, 240, true)));
-    this.panelLayer.add(this.add.text(margin + 72, y + 48, 'Spend parts between waves.', this.textStyle('#9fb2d8', 14, 240)));
+    this.panelLayer.add(this.add.text(margin + 72, y + 48, 'Spend collected parts during the run.', this.textStyle('#9fb2d8', 14, 240)));
 
     const startX = margin + 266;
     const gap = 14;
@@ -480,8 +480,8 @@ export class UIScene extends Phaser.Scene {
   }
 
   private createUpgradeCard(x: number, y: number, upgrade: UpgradeUiModel, width = 166): void {
-    const canBuy = this.model?.phase === 'intermission' && upgrade.affordable && !upgrade.maxed;
-    const locked = this.model?.phase === 'wave' || (!upgrade.affordable && !upgrade.maxed);
+    const canBuy = this.model?.phase !== 'won' && this.model?.phase !== 'lost' && upgrade.affordable && !upgrade.maxed;
+    const locked = !canBuy && !upgrade.maxed;
     const fill = upgrade.maxed ? 0x25333a : canBuy ? 0x244533 : 0x22303a;
     const stroke = canBuy ? 0x58e070 : upgrade.maxed ? 0xf7d95b : 0x516a78;
     this.createButtonSurface(this.panelLayer, x, y, width, 88, fill, stroke, locked ? 0.72 : 1, () => {

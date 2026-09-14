@@ -92,6 +92,77 @@ test('tank fires from lower gameplay area on resized canvas', async ({ page }) =
   await page.mouse.up();
 });
 
+test('collected parts can buy upgrades during a wave', async ({ page }) => {
+  await page.goto('/');
+  const canvas = page.locator('canvas');
+  await expect(canvas).toBeVisible();
+  await expect
+    .poll(() => page.evaluate(() => window.__phaserGame?.scene.isActive('MenuScene') ?? false), {
+      timeout: 15_000,
+    })
+    .toBe(true);
+
+  const box = await canvas.boundingBox();
+  expect(box).not.toBeNull();
+  if (!box) return;
+
+  await page.mouse.click(box.x + box.width * 0.828, box.y + box.height * 0.947);
+  await expect
+    .poll(() => page.evaluate(() => window.__phaserGame?.scene.isActive('GameScene') ?? false), {
+      timeout: 15_000,
+    })
+    .toBe(true);
+
+  const upgradeButton = await page.evaluate(() => {
+    const gameScene = window.__phaserGame?.scene.getScene('GameScene') as unknown as
+      | {
+          parts: number;
+          publishHud?: () => void;
+        }
+      | undefined;
+    const uiScene = window.__phaserGame?.scene.getScene('UIScene') as unknown as
+      | {
+          activeTab: string;
+          render?: () => void;
+          hotspots?: Array<{ rect: { x: number; y: number; width: number; height: number } }>;
+        }
+      | undefined;
+
+    if (!gameScene || !uiScene) return undefined;
+    gameScene.parts = 20;
+    gameScene.publishHud?.();
+    uiScene.activeTab = 'tank';
+    uiScene.render?.();
+
+    return uiScene.hotspots?.find((hotspot) => hotspot.rect.height === 88)?.rect;
+  });
+
+  expect(upgradeButton).toBeTruthy();
+  if (!upgradeButton) return;
+
+  await page.mouse.click(upgradeButton.x + upgradeButton.width / 2, upgradeButton.y + upgradeButton.height / 2);
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const scene = window.__phaserGame?.scene.getScene('GameScene') as unknown as
+          | {
+              getDebugSnapshot?: () => {
+                parts: number;
+                upgrades: Record<string, number>;
+              };
+            }
+          | undefined;
+
+        return scene?.getDebugSnapshot?.();
+      }),
+      { timeout: 3_000 },
+    )
+    .toMatchObject({
+      parts: 10,
+      upgrades: { 'tank-damage': 1 },
+    });
+});
+
 test('death screen can return to main menu', async ({ page }) => {
   await page.goto('/');
   const canvas = page.locator('canvas');
