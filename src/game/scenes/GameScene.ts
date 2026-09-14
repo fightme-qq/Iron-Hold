@@ -12,7 +12,7 @@ import { GameEvents } from '../config/gameEvents';
 import { SceneKeys } from '../config/sceneKeys';
 import { eventBus } from '../events/EventBus';
 import { PlayerInput } from '../input/PlayerInput';
-import { fadeInScene } from './sceneTransitions';
+import { fadeInScene, startSceneWithFade } from './sceneTransitions';
 
 type DefensePhase = 'intermission' | 'wave' | 'stageBreak' | 'won' | 'lost';
 type EnemyKind = 'scout' | 'bruiser';
@@ -190,6 +190,14 @@ export class GameScene extends Phaser.Scene {
   update(time: number, delta: number): void {
     this.elapsedMs += delta;
     this.hudPublishTimerMs += delta;
+    if (this.phase === 'won' || this.phase === 'lost') {
+      if (this.hudPublishTimerMs >= 120) {
+        this.hudPublishTimerMs = 0;
+        this.publishHud();
+      }
+      return;
+    }
+
     this.updatePlayer(delta);
     this.updateEnemies();
     this.updateBullets();
@@ -450,6 +458,7 @@ export class GameScene extends Phaser.Scene {
   private createEventHandlers(): void {
     eventBus.on(GameEvents.StartWaveRequested, this.handleStartWaveRequested, this);
     eventBus.on(GameEvents.RestartRequested, this.handleRestartRequested, this);
+    eventBus.on(GameEvents.MainMenuRequested, this.handleMainMenuRequested, this);
     eventBus.on(GameEvents.UpgradeRequested, this.handleUpgradeRequested, this);
   }
 
@@ -907,6 +916,14 @@ export class GameScene extends Phaser.Scene {
 
   private handleRestartRequested(): void {
     this.scene.restart();
+  }
+
+  private handleMainMenuRequested(): void {
+    startSceneWithFade(this, SceneKeys.Menu, {
+      durationMs: 280,
+      color: 0x02040d,
+      loadingText: 'Returning to sector map',
+    });
   }
 
   private handleUpgradeRequested(payload: { id: string }): void {
@@ -1441,6 +1458,7 @@ export class GameScene extends Phaser.Scene {
     this.scale.off(Phaser.Scale.Events.RESIZE, this.handleResize, this);
     eventBus.off(GameEvents.StartWaveRequested, this.handleStartWaveRequested, this);
     eventBus.off(GameEvents.RestartRequested, this.handleRestartRequested, this);
+    eventBus.off(GameEvents.MainMenuRequested, this.handleMainMenuRequested, this);
     eventBus.off(GameEvents.UpgradeRequested, this.handleUpgradeRequested, this);
     this.scene.stop(SceneKeys.UI);
     eventBus.emit(GameEvents.GameplayStopped, { scene: SceneKeys.Game });

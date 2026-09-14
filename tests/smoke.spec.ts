@@ -53,3 +53,67 @@ test('game canvas renders', async ({ page }) => {
   expect(gameState?.phase).toBe('playing');
   expect(gameState?.elapsedMs).toBeGreaterThan(0);
 });
+
+test('death screen can return to main menu', async ({ page }) => {
+  await page.goto('/');
+  const canvas = page.locator('canvas');
+  await expect(canvas).toBeVisible();
+  await expect
+    .poll(() => page.evaluate(() => window.__phaserGame?.scene.isActive('MenuScene') ?? false), {
+      timeout: 15_000,
+    })
+    .toBe(true);
+
+  const box = await canvas.boundingBox();
+  expect(box).not.toBeNull();
+  if (!box) return;
+
+  await page.mouse.click(box.x + box.width * 0.828, box.y + box.height * 0.947);
+  await expect
+    .poll(() => page.evaluate(() => window.__phaserGame?.scene.isActive('GameScene') ?? false), {
+      timeout: 15_000,
+    })
+    .toBe(true);
+
+  await page.evaluate(() => {
+    const scene = window.__phaserGame?.scene.getScene('GameScene') as unknown as
+      | {
+          phase: string;
+          status: string;
+          playerHp: number;
+          publishHud?: () => void;
+        }
+      | undefined;
+
+    if (scene) {
+      scene.phase = 'lost';
+      scene.status = 'Test defeat';
+      scene.playerHp = 0;
+      scene.publishHud?.();
+    }
+  });
+
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const uiScene = window.__phaserGame?.scene.getScene('UIScene') as unknown as
+          | {
+              resultLayer?: {
+                list?: Array<{ type: string; text?: string }>;
+              };
+            }
+          | undefined;
+
+        return uiScene?.resultLayer?.list?.some((object) => object.type === 'Text' && object.text === 'Main Menu') ?? false;
+      }),
+    )
+    .toBe(true);
+
+  await page.mouse.click(box.x + box.width * 0.4, box.y + box.height * 0.586);
+  await expect
+    .poll(() => page.evaluate(() => window.__phaserGame?.scene.isActive('MenuScene') ?? false), {
+      timeout: 15_000,
+    })
+    .toBe(true);
+  await expect.poll(() => page.evaluate(() => window.__phaserGame?.scene.isActive('GameScene') ?? false)).toBe(false);
+});

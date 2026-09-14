@@ -105,6 +105,7 @@ export class UIScene extends Phaser.Scene {
   private minimapLayer!: Phaser.GameObjects.Container;
   private panelLayer!: Phaser.GameObjects.Container;
   private navLayer!: Phaser.GameObjects.Container;
+  private resultLayer!: Phaser.GameObjects.Container;
   private statusText!: Phaser.GameObjects.Text;
   private waveValue!: Phaser.GameObjects.Text;
   private hpValue!: Phaser.GameObjects.Text;
@@ -123,6 +124,7 @@ export class UIScene extends Phaser.Scene {
     this.minimapLayer = this.add.container(0, 0).setDepth(38);
     this.panelLayer = this.add.container(0, 0).setDepth(40);
     this.navLayer = this.add.container(0, 0).setDepth(50);
+    this.resultLayer = this.add.container(0, 0).setDepth(70);
     this.createTopHud(this.title);
     this.createNavbar();
 
@@ -281,6 +283,7 @@ export class UIScene extends Phaser.Scene {
     this.createNavbar();
     this.renderPanel();
     this.renderMinimap();
+    this.renderResultOverlay();
   }
 
   private renderPanel(): void {
@@ -434,6 +437,48 @@ export class UIScene extends Phaser.Scene {
     });
   }
 
+  private renderResultOverlay(): void {
+    this.resultLayer.removeAll(true);
+    if (!this.model || (this.model.phase !== 'lost' && this.model.phase !== 'won')) {
+      return;
+    }
+
+    const { width, height } = this.scale;
+    const isWon = this.model.phase === 'won';
+    const panelWidth = Phaser.Math.Clamp(width * 0.42, 430, 620);
+    const panelHeight = 246;
+    const x = width / 2 - panelWidth / 2;
+    const y = height / 2 - panelHeight / 2;
+    const accent = isWon ? 0x58e070 : 0xff6b4a;
+    const title = isWon ? 'Sector Secured' : 'Tank Destroyed';
+    const subtitle = isWon
+      ? 'Enemy base is down. Choose another sector or replay this route.'
+      : 'The run is over. Return to the sector map or restart the defense.';
+
+    this.resultLayer.add(this.add.rectangle(width / 2, height / 2, width, height, 0x050713, 0.58));
+    this.resultLayer.add(this.roundedRect(x, y, panelWidth, panelHeight, 0x132022, 0.97, 8, accent, 0.9));
+    this.resultLayer.add(this.add.image(x + 58, y + 64, AssetKeys.UIIcons, isWon ? iconFrames.baseHp : iconFrames.battle).setDisplaySize(44, 44));
+    this.resultLayer.add(this.add.text(x + 96, y + 38, title, this.textStyle(isWon ? '#b9f27c' : '#ffb49f', 28, panelWidth - 132, true)));
+    this.resultLayer.add(this.add.text(x + 96, y + 82, subtitle, this.textStyle('#d8e2f8', 16, panelWidth - 132)));
+    this.resultLayer.add(this.add.text(x + 34, y + 132, this.model.status, this.textStyle('#9fb2d8', 14, panelWidth - 68)));
+
+    const buttonY = y + panelHeight - 72;
+    const buttonGap = 16;
+    const buttonWidth = (panelWidth - 68 - buttonGap) / 2;
+    this.createButtonSurface(this.resultLayer, x + 34, buttonY, buttonWidth, 52, 0x20303a, 0x7d93a3, 1, () => {
+      eventBus.emit(GameEvents.MainMenuRequested, {});
+    });
+    this.resultLayer.add(this.add.image(x + 62, buttonY + 26, AssetKeys.UIIcons, iconFrames.map).setDisplaySize(28, 28));
+    this.resultLayer.add(this.add.text(x + 94, buttonY + 17, 'Main Menu', this.textStyle('#e8f1f2', 16, buttonWidth - 74, true)));
+
+    const restartX = x + 34 + buttonWidth + buttonGap;
+    this.createButtonSurface(this.resultLayer, restartX, buttonY, buttonWidth, 52, isWon ? 0x58e070 : 0xf26f55, 0xdfffe6, 1, () => {
+      eventBus.emit(GameEvents.RestartRequested, {});
+    });
+    this.resultLayer.add(this.add.image(restartX + 28, buttonY + 26, AssetKeys.UIIcons, iconFrames.restart).setDisplaySize(28, 28));
+    this.resultLayer.add(this.add.text(restartX + 60, buttonY + 17, 'Restart', this.textStyle('#101820', 16, buttonWidth - 76, true)));
+  }
+
   private createUpgradeCard(x: number, y: number, upgrade: UpgradeUiModel, width = 166): void {
     const canBuy = this.model?.phase === 'intermission' && upgrade.affordable && !upgrade.maxed;
     const locked = this.model?.phase === 'wave' || (!upgrade.affordable && !upgrade.maxed);
@@ -522,6 +567,7 @@ export class UIScene extends Phaser.Scene {
     } else {
       this.hotspots = [];
       this.createNavbar();
+      this.resultLayer.removeAll(true);
     }
   }
 

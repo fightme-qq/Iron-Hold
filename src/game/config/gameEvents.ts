@@ -9,6 +9,7 @@ export const GameEvents = {
   UpgradeRequested: 'upgrade-requested',
   StartWaveRequested: 'start-wave-requested',
   RestartRequested: 'restart-requested',
+  MainMenuRequested: 'main-menu-requested',
 } as const;
 
 export type GameEvent = (typeof GameEvents)[keyof typeof GameEvents];
@@ -72,4 +73,5 @@ export type GameEventPayloads = {
   [GameEvents.UpgradeRequested]: { id: string };
   [GameEvents.StartWaveRequested]: {};
   [GameEvents.RestartRequested]: {};
+  [GameEvents.MainMenuRequested]: {};
 };
