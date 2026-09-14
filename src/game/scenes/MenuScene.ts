@@ -95,15 +95,36 @@ export class MenuScene extends Phaser.Scene {
     this.planetLayer = this.add.container(0, 0);
     this.uiLayer = this.add.container(0, 0).setDepth(100);
 
-    this.drawSpace();
-    this.createPlanets();
-    this.createMapSelect();
+    this.rebuildLayout();
     this.applySelection(this.selectedMap, false);
+    this.scale.on(Phaser.Scale.Events.RESIZE, this.handleResize, this);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.scale.off(Phaser.Scale.Events.RESIZE, this.handleResize, this);
+    });
 
     this.input.keyboard?.on('keydown-ENTER', () => this.startSelectedMap());
     this.input.keyboard?.on('keydown-SPACE', () => this.startSelectedMap());
     this.input.keyboard?.on('keydown-LEFT', () => this.selectAdjacent(-1));
     this.input.keyboard?.on('keydown-RIGHT', () => this.selectAdjacent(1));
+  }
+
+  private handleResize(): void {
+    this.rebuildLayout();
+    this.applySelection(this.selectedMap, false);
+  }
+
+  private rebuildLayout(): void {
+    this.tweens.killTweensOf(this.planetLayer);
+    this.stars = [];
+    this.meteors = [];
+    this.focusPlanets = [];
+    this.cards = [];
+    this.spaceLayer.removeAll(true);
+    this.planetLayer.removeAll(true);
+    this.uiLayer.removeAll(true);
+    this.drawSpace();
+    this.createPlanets();
+    this.createMapSelect();
   }
 
   update(time: number, delta: number): void {
@@ -210,13 +231,15 @@ export class MenuScene extends Phaser.Scene {
 
   private createMapSelect(): void {
     const { width, height } = this.scale;
-    const left = 72;
-    const top = 72;
+    const margin = Phaser.Math.Clamp(width * 0.045, 42, 86);
+    const left = margin;
+    const top = Phaser.Math.Clamp(height * 0.1, 44, 86);
+    const compact = width < 980;
 
     this.uiLayer.add(
       this.add.text(left, top, 'IRON HOLD', {
         fontFamily: 'Trebuchet MS, Arial, sans-serif',
-        fontSize: '44px',
+        fontSize: compact ? '34px' : '44px',
         color: '#ffffff',
         fontStyle: 'bold',
         shadow: { offsetX: 0, offsetY: 4, color: '#000000', blur: 10, fill: true },
@@ -232,16 +255,20 @@ export class MenuScene extends Phaser.Scene {
     );
 
     const panelY = height - 222;
-    this.uiLayer.add(this.add.rectangle(width / 2, panelY + 80, width - 140, 160, 0x08111d, 0.78).setStrokeStyle(1, 0x4b7faf, 0.78));
+    const panelWidth = width - margin * 2;
+    this.uiLayer.add(this.add.rectangle(width / 2, panelY + 80, panelWidth, 160, 0x08111d, 0.78).setStrokeStyle(1, 0x4b7faf, 0.78));
 
+    const cardGap = Phaser.Math.Clamp(width * 0.026, 12, 54);
+    const cardWidth = Phaser.Math.Clamp((panelWidth - 32 - cardGap * 2) / 3, compact ? 206 : 250, 370);
+    const cardStartX = margin + 16;
     mapCards.forEach((card, index) => {
-      this.createMapCard(80 + index * 374, panelY + 28, card);
+      this.createMapCard(cardStartX + index * (cardWidth + cardGap), panelY + 28, card, cardWidth);
     });
 
-    this.launchButton = this.add.rectangle(width - 210, height - 38, 238, 54, 0x58e070, 1).setStrokeStyle(2, 0xdfffe6, 0.95);
+    this.launchButton = this.add.rectangle(width - margin - 120, height - 38, 238, 54, 0x58e070, 1).setStrokeStyle(2, 0xdfffe6, 0.95);
     this.launchButton.setInteractive({ useHandCursor: true });
     this.launchText = this.add
-      .text(width - 210, height - 38, 'Launch Defense', {
+      .text(width - margin - 120, height - 38, 'Launch Defense', {
         fontFamily: 'Trebuchet MS, Arial, sans-serif',
         fontSize: '18px',
         color: '#07130e',
@@ -254,20 +281,25 @@ export class MenuScene extends Phaser.Scene {
     this.uiLayer.add([this.launchButton, this.launchText]);
   }
 
-  private createMapCard(x: number, y: number, card: (typeof mapCards)[number]): void {
-    const surface = this.add.rectangle(x, y, 330, 104, 0x111a27, 0.94).setOrigin(0, 0);
+  private createMapCard(x: number, y: number, card: (typeof mapCards)[number], width = 330): void {
+    const compact = width < 260;
+    const surface = this.add.rectangle(x, y, width, 104, 0x111a27, 0.94).setOrigin(0, 0);
     surface.setInteractive({ useHandCursor: true });
-    const planet = this.add.image(x + 48, y + 52, AssetKeys.MenuPlanets, card.planetFrame).setDisplaySize(72, 72);
-    const title = this.add.text(x + 96, y + 25, card.title, {
+    const planetSize = compact ? 56 : 72;
+    const textX = x + (compact ? 76 : 96);
+    const planet = this.add.image(x + (compact ? 38 : 48), y + 52, AssetKeys.MenuPlanets, card.planetFrame).setDisplaySize(planetSize, planetSize);
+    const title = this.add.text(textX, y + 25, card.title, {
       fontFamily: 'Trebuchet MS, Arial, sans-serif',
-      fontSize: '21px',
+      fontSize: compact ? '18px' : '21px',
       color: '#ffffff',
       fontStyle: 'bold',
+      wordWrap: { width: Math.max(108, width - (compact ? 90 : 112)) },
     });
-    const subtitle = this.add.text(x + 96, y + 58, card.subtitle, {
+    const subtitle = this.add.text(textX, y + 58, card.subtitle, {
       fontFamily: 'Trebuchet MS, Arial, sans-serif',
-      fontSize: '15px',
+      fontSize: compact ? '13px' : '15px',
       color: '#b9c7e6',
+      wordWrap: { width: Math.max(108, width - (compact ? 90 : 112)) },
     });
 
     const select = () => this.applySelection(card.id, true);

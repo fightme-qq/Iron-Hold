@@ -141,6 +141,7 @@ export class GameScene extends Phaser.Scene {
     this.createActors();
     this.createPhysics();
     this.createEventHandlers();
+    this.scale.on(Phaser.Scale.Events.RESIZE, this.handleResize, this);
     this.scene.launch(SceneKeys.UI, { title: 'Iron Hold' });
     this.startWave();
     this.time.delayedCall(0, () => this.publishHud());
@@ -402,7 +403,19 @@ export class GameScene extends Phaser.Scene {
     this.playerHpBack = this.add.rectangle(this.player.x, this.player.y - 46, 52, 7, 0x101820, 0.82).setStrokeStyle(1, 0xd8e2f8, 0.45);
     this.playerHpFill = this.add.rectangle(this.player.x - 26, this.player.y - 46, 52, 5, 0x58e070, 0.96).setOrigin(0, 0.5);
     this.cameras.main.startFollow(this.player, true, 0.08, 0.08);
-    this.cameras.main.setDeadzone(this.scale.width * 0.24, this.scale.height * 0.2);
+    this.updateCameraLayout();
+  }
+
+  private handleResize(): void {
+    this.updateCameraLayout();
+    this.publishHud();
+  }
+
+  private updateCameraLayout(): void {
+    const deadzoneWidth = Phaser.Math.Clamp(this.scale.width * 0.24, 220, 720);
+    const deadzoneHeight = Phaser.Math.Clamp(this.scale.height * 0.2, 150, 420);
+    this.cameras.main.setBounds(0, 0, defenseBalance.world.width, defenseBalance.world.height);
+    this.cameras.main.setDeadzone(deadzoneWidth, deadzoneHeight);
   }
 
   private createPhysics(): void {
@@ -1425,6 +1438,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private shutdown(): void {
+    this.scale.off(Phaser.Scale.Events.RESIZE, this.handleResize, this);
     eventBus.off(GameEvents.StartWaveRequested, this.handleStartWaveRequested, this);
     eventBus.off(GameEvents.RestartRequested, this.handleRestartRequested, this);
     eventBus.off(GameEvents.UpgradeRequested, this.handleUpgradeRequested, this);

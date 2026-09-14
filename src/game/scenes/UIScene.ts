@@ -111,20 +111,23 @@ export class UIScene extends Phaser.Scene {
   private tankHpValue!: Phaser.GameObjects.Text;
   private partsValue!: Phaser.GameObjects.Text;
   private stageValue!: Phaser.GameObjects.Text;
+  private title = 'Iron Hold';
 
   constructor() {
     super(SceneKeys.UI);
   }
 
   create(data: { title?: string }): void {
+    this.title = data.title ?? 'Iron Hold';
     this.hudLayer = this.add.container(0, 0).setDepth(30);
     this.minimapLayer = this.add.container(0, 0).setDepth(38);
     this.panelLayer = this.add.container(0, 0).setDepth(40);
     this.navLayer = this.add.container(0, 0).setDepth(50);
-    this.createTopHud(data.title ?? 'Iron Hold');
+    this.createTopHud(this.title);
     this.createNavbar();
 
     this.input.on('pointerdown', this.handlePointerDown, this);
+    this.scale.on(Phaser.Scale.Events.RESIZE, this.handleResize, this);
     eventBus.on(GameEvents.DefenseHudChanged, this.handleHudChanged, this);
     eventBus.on(GameEvents.GameplayStopped, this.handleGameplayStopped, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.removeEventListeners());
@@ -132,28 +135,43 @@ export class UIScene extends Phaser.Scene {
 
   private createTopHud(title: string): void {
     const { width } = this.scale;
+    const margin = Phaser.Math.Clamp(width * 0.018, 18, 34);
+    const compact = width < 1180;
+    const titleSize = compact ? 22 : 26;
+    const chipGap = compact ? 8 : 12;
+    const titleWidth = compact ? 150 : 238;
+    const statusWidth = width >= 1180 ? Phaser.Math.Clamp(width * 0.18, 220, 380) : 0;
+    const availableChipWidth = width - margin * 2 - titleWidth - statusWidth - chipGap * 5;
+    const chipWidth = Phaser.Math.Clamp(availableChipWidth / 5, compact ? 112 : 136, 210);
+    const chipY = 12;
     this.hudLayer.removeAll(true);
     this.hudLayer.add(this.roundedRect(0, 0, width, 64, 0x14241b, 0.94, 0, 0x14241b, 0));
 
-    const titleText = this.add.text(24, 18, title, {
+    const titleText = this.add.text(margin, 18, title, {
       fontFamily: 'Trebuchet MS, Arial, sans-serif',
-      fontSize: '26px',
+      fontSize: `${titleSize}px`,
       color: '#ffffff',
       fontStyle: 'bold',
     });
     this.hudLayer.add(titleText);
 
-    this.waveValue = this.createStatChip(214, 12, 150, iconFrames.wave, 'Wave', '#d9f2ff');
-    this.hpValue = this.createStatChip(378, 12, 172, iconFrames.baseHp, 'Base', '#f7d95b');
-    this.tankHpValue = this.createStatChip(564, 12, 148, iconFrames.armor, 'Tank', '#ffb49f');
-    this.partsValue = this.createStatChip(726, 12, 144, iconFrames.parts, 'Parts', '#b9f27c');
-    this.stageValue = this.createStatChip(884, 12, 170, iconFrames.battle, 'Stage', '#f7d95b');
-    this.statusText = this.add.text(1072, 15, '', {
+    let x = margin + titleWidth;
+    this.waveValue = this.createStatChip(x, chipY, chipWidth, iconFrames.wave, 'Wave', '#d9f2ff', compact);
+    x += chipWidth + chipGap;
+    this.hpValue = this.createStatChip(x, chipY, chipWidth, iconFrames.baseHp, 'Base', '#f7d95b', compact);
+    x += chipWidth + chipGap;
+    this.tankHpValue = this.createStatChip(x, chipY, chipWidth, iconFrames.armor, 'Tank', '#ffb49f', compact);
+    x += chipWidth + chipGap;
+    this.partsValue = this.createStatChip(x, chipY, chipWidth, iconFrames.parts, 'Parts', '#b9f27c', compact);
+    x += chipWidth + chipGap;
+    this.stageValue = this.createStatChip(x, chipY, chipWidth, iconFrames.battle, 'Stage', '#f7d95b', compact);
+    this.statusText = this.add.text(width - margin - statusWidth, 12, '', {
       fontFamily: 'Trebuchet MS, Arial, sans-serif',
       fontSize: '14px',
       color: '#d8e2f8',
-      wordWrap: { width: Math.max(180, width - 1096) },
+      wordWrap: { width: Math.max(120, statusWidth) },
     });
+    this.statusText.setVisible(statusWidth > 0);
     this.hudLayer.add(this.statusText);
   }
 
@@ -164,14 +182,17 @@ export class UIScene extends Phaser.Scene {
     frame: number,
     label: string,
     color: string,
+    compact = false,
   ): Phaser.GameObjects.Text {
     this.hudLayer.add(this.roundedRect(x, y, width, 40, 0x213329, 0.96, 8, 0x3d5948, 0.75));
-    const icon = this.add.image(x + 22, y + 20, AssetKeys.UIIcons, frame).setDisplaySize(28, 28);
-    const text = this.add.text(x + 44, y + 11, `${label} 0`, {
+    const iconSize = compact ? 24 : 28;
+    const icon = this.add.image(x + 20, y + 20, AssetKeys.UIIcons, frame).setDisplaySize(iconSize, iconSize);
+    const text = this.add.text(x + (compact ? 38 : 44), y + 11, `${label} 0`, {
       fontFamily: 'Trebuchet MS, Arial, sans-serif',
-      fontSize: '16px',
+      fontSize: compact ? '14px' : '16px',
       color,
       fontStyle: 'bold',
+      wordWrap: { width: Math.max(68, width - (compact ? 44 : 52)) },
     });
     this.hudLayer.add([icon, text]);
     return text;
@@ -180,30 +201,34 @@ export class UIScene extends Phaser.Scene {
   private createNavbar(): void {
     const { width, height } = this.scale;
     const dockY = height - 84;
+    const margin = Phaser.Math.Clamp(width * 0.018, 18, 34);
+    const tabGap = width < 860 ? 8 : 16;
+    const tabWidth = Phaser.Math.Clamp((width - margin * 2 - tabGap * (tabItems.length - 1) - 220) / 4, 104, 150);
     this.navLayer.removeAll(true);
     this.navLayer.add(this.roundedRect(0, dockY, width, 84, 0x111b1f, 0.97, 0, 0x111b1f, 0));
 
-    let x = 24;
+    let x = margin;
     for (const tab of tabItems) {
-      this.createTabButton(x, dockY + 14, tab);
-      x += 134;
+      this.createTabButton(x, dockY + 14, tab, tabWidth);
+      x += tabWidth + tabGap;
     }
 
-    this.createActionButton(width - 212, dockY + 14);
+    this.createActionButton(width - margin - 188, dockY + 14);
   }
 
-  private createTabButton(x: number, y: number, tab: { id: DefenseTab; label: string; frame: number }): void {
+  private createTabButton(x: number, y: number, tab: { id: DefenseTab; label: string; frame: number }, width: number): void {
     const selected = tab.id === this.activeTab;
     const fill = selected ? 0xf7d95b : 0x20303a;
     const stroke = selected ? 0xffffff : 0x516a78;
     const textColor = selected ? '#101820' : '#e8f1f2';
-    this.createButtonSurface(this.navLayer, x, y, 116, 56, fill, stroke, selected ? 1 : 0.72, () => {
+    this.createButtonSurface(this.navLayer, x, y, width, 56, fill, stroke, selected ? 1 : 0.72, () => {
       this.activeTab = tab.id;
       this.render();
     });
     const icon = this.add.image(x + 28, y + 28, AssetKeys.UIIcons, tab.frame).setDisplaySize(28, 28);
+    const showLabel = width >= 118;
     const label = this.add
-      .text(x + 70, y + 29, tab.label, {
+      .text(x + (showLabel ? width * 0.62 : width / 2), y + 29, showLabel ? tab.label : '', {
         fontFamily: 'Trebuchet MS, Arial, sans-serif',
         fontSize: '15px',
         color: textColor,
@@ -277,8 +302,12 @@ export class UIScene extends Phaser.Scene {
 
   private renderBattlePanel(): void {
     if (!this.model) return;
-    const { height } = this.scale;
+    const { width, height } = this.scale;
+    const margin = Phaser.Math.Clamp(width * 0.018, 18, 34);
     const y = height - 150;
+    const gap = 18;
+    const objectiveWidth = Phaser.Math.Clamp(width * 0.22, 250, 360);
+    const infoWidth = Math.max(360, width - margin * 2 - objectiveWidth - gap);
     const phaseLabel =
       this.model.phase === 'intermission'
         ? 'Intermission'
@@ -287,44 +316,47 @@ export class UIScene extends Phaser.Scene {
           : this.model.phase === 'stageBreak'
             ? 'Reposition'
             : this.model.phase;
-    this.panelLayer.add(this.roundedRect(24, y, 720, 54, 0x132022, 0.88, 8, 0x2c4240, 0.78));
-    this.panelLayer.add(this.add.image(54, y + 27, AssetKeys.UIIcons, iconFrames.battle).setDisplaySize(28, 28));
-    this.panelLayer.add(this.add.text(86, y + 9, phaseLabel, this.textStyle('#f7d95b', 15, 160, true)));
+    this.panelLayer.add(this.roundedRect(margin, y, infoWidth, 54, 0x132022, 0.88, 8, 0x2c4240, 0.78));
+    this.panelLayer.add(this.add.image(margin + 30, y + 27, AssetKeys.UIIcons, iconFrames.battle).setDisplaySize(28, 28));
+    this.panelLayer.add(this.add.text(margin + 62, y + 9, phaseLabel, this.textStyle('#f7d95b', 15, 160, true)));
     this.panelLayer.add(
       this.add.text(
-        86,
+        margin + 62,
         y + 30,
         'W/S drive, A/D turn. Capture relics, break barrels, collect repairs.',
-        this.textStyle('#d8e2f8', 14, 560),
+        this.textStyle('#d8e2f8', 14, Math.max(240, infoWidth - 86)),
       ),
     );
-    this.panelLayer.add(this.roundedRect(764, y, 260, 54, 0x132022, 0.88, 8, 0x2c4240, 0.78));
-    this.panelLayer.add(this.add.image(794, y + 27, AssetKeys.UIIcons, iconFrames.baseHp).setDisplaySize(28, 28));
-    this.panelLayer.add(this.add.text(826, y + 10, 'Win: destroy enemy base', this.textStyle('#b9f27c', 14, 180, true)));
-    this.panelLayer.add(this.add.text(826, y + 30, 'Lose: base or tank falls', this.textStyle('#ffb49f', 14, 180, true)));
+    const objectiveX = margin + infoWidth + gap;
+    this.panelLayer.add(this.roundedRect(objectiveX, y, objectiveWidth, 54, 0x132022, 0.88, 8, 0x2c4240, 0.78));
+    this.panelLayer.add(this.add.image(objectiveX + 30, y + 27, AssetKeys.UIIcons, iconFrames.baseHp).setDisplaySize(28, 28));
+    this.panelLayer.add(this.add.text(objectiveX + 62, y + 10, 'Win: destroy enemy base', this.textStyle('#b9f27c', 14, objectiveWidth - 78, true)));
+    this.panelLayer.add(this.add.text(objectiveX + 62, y + 30, 'Lose: base or tank falls', this.textStyle('#ffb49f', 14, objectiveWidth - 78, true)));
   }
 
   private renderMapPanel(): void {
     if (!this.model) return;
     const { width, height } = this.scale;
     const y = height - 236;
-    this.panelLayer.add(this.roundedRect(24, y, width - 48, 132, 0x132022, 0.93, 8, 0x2c4240, 0.9));
-    this.panelLayer.add(this.add.image(60, y + 38, AssetKeys.UIIcons, iconFrames.map).setDisplaySize(44, 44));
-    this.panelLayer.add(this.add.text(96, y + 20, 'Wave Intel', this.textStyle('#f7d95b', 17, 180, true)));
+    const margin = Phaser.Math.Clamp(width * 0.018, 18, 34);
+    this.panelLayer.add(this.roundedRect(margin, y, width - margin * 2, 132, 0x132022, 0.93, 8, 0x2c4240, 0.9));
+    this.panelLayer.add(this.add.image(margin + 36, y + 38, AssetKeys.UIIcons, iconFrames.map).setDisplaySize(44, 44));
+    this.panelLayer.add(this.add.text(margin + 72, y + 20, 'Wave Intel', this.textStyle('#f7d95b', 17, 180, true)));
     const next = this.model.nextWave;
     const text = next ? `Next wave: ${next.scouts} scouts, ${next.bruisers} bruisers` : 'Sector secured. No more waves in this MVP.';
-    this.panelLayer.add(this.add.text(96, y + 54, text, this.textStyle('#d8e2f8', 20, 440)));
+    this.panelLayer.add(this.add.text(margin + 72, y + 54, text, this.textStyle('#d8e2f8', 20, Math.min(440, width * 0.36))));
     const stages = next?.stages.map((stage, index) => `${index + 1}. ${stage.title}: ${stage.scouts}/${stage.bruisers}`).join('\n') ?? '';
-    this.panelLayer.add(this.add.text(600, y + 24, stages, this.textStyle('#d8e2f8', 15, 300)));
-    this.panelLayer.add(this.add.text(930, y + 24, 'Relics reveal fog and shoot for their owner.', this.textStyle('#9fb2d8', 15, 250)));
-    this.panelLayer.add(this.add.text(930, y + 62, 'Optics expands minimap intel.', this.textStyle('#b9f27c', 15, 250, true)));
+    this.panelLayer.add(this.add.text(width * 0.46, y + 24, stages, this.textStyle('#d8e2f8', 15, Math.max(240, width * 0.2))));
+    this.panelLayer.add(this.add.text(width * 0.72, y + 24, 'Relics hold fire lanes and shoot for their owner.', this.textStyle('#9fb2d8', 15, Math.max(220, width * 0.18))));
+    this.panelLayer.add(this.add.text(width * 0.72, y + 62, 'Optics expands tactical awareness.', this.textStyle('#b9f27c', 15, Math.max(220, width * 0.18), true)));
   }
 
   private renderMinimap(): void {
     if (!this.model) return;
-    const mapWidth = 186;
-    const mapHeight = 128;
-    const x = this.scale.width - mapWidth - 24;
+    const mapWidth = Phaser.Math.Clamp(this.scale.width * 0.14, 176, 280);
+    const mapHeight = Phaser.Math.Clamp(mapWidth * 0.68, 120, 190);
+    const margin = Phaser.Math.Clamp(this.scale.width * 0.018, 18, 34);
+    const x = this.scale.width - mapWidth - margin;
     const y = 82;
     this.minimapLayer.removeAll(true);
     this.minimapLayer.add(this.roundedRect(x, y, mapWidth, mapHeight, 0x101820, 0.86, 8, 0xd8e2f8, 0.35));
@@ -387,34 +419,39 @@ export class UIScene extends Phaser.Scene {
     const { width, height } = this.scale;
     const y = height - 236;
     const upgrades = this.model.upgrades.filter((upgrade) => upgrade.target === tab);
-    this.panelLayer.add(this.roundedRect(24, y, width - 48, 132, 0x132022, 0.94, 8, 0x2c4240, 0.9));
-    this.panelLayer.add(this.add.image(60, y + 38, AssetKeys.UIIcons, tab === 'tank' ? iconFrames.tank : iconFrames.base).setDisplaySize(44, 44));
-    this.panelLayer.add(this.add.text(96, y + 19, tab === 'tank' ? 'Tank Bay' : 'Base Workshop', this.textStyle('#f7d95b', 17, 240, true)));
-    this.panelLayer.add(this.add.text(96, y + 48, 'Spend parts between waves.', this.textStyle('#9fb2d8', 14, 240)));
+    const margin = Phaser.Math.Clamp(width * 0.018, 18, 34);
+    this.panelLayer.add(this.roundedRect(margin, y, width - margin * 2, 132, 0x132022, 0.94, 8, 0x2c4240, 0.9));
+    this.panelLayer.add(this.add.image(margin + 36, y + 38, AssetKeys.UIIcons, tab === 'tank' ? iconFrames.tank : iconFrames.base).setDisplaySize(44, 44));
+    this.panelLayer.add(this.add.text(margin + 72, y + 19, tab === 'tank' ? 'Tank Bay' : 'Base Workshop', this.textStyle('#f7d95b', 17, 240, true)));
+    this.panelLayer.add(this.add.text(margin + 72, y + 48, 'Spend parts between waves.', this.textStyle('#9fb2d8', 14, 240)));
 
+    const startX = margin + 266;
+    const gap = 14;
+    const cardWidth = Phaser.Math.Clamp((width - startX - margin - gap * Math.max(0, upgrades.length - 1)) / Math.max(1, upgrades.length), 150, 190);
     upgrades.forEach((upgrade, index) => {
-      const x = 290 + index * 184;
-      this.createUpgradeCard(x, y + 22, upgrade);
+      const x = startX + index * (cardWidth + gap);
+      this.createUpgradeCard(x, y + 22, upgrade, cardWidth);
     });
   }
 
-  private createUpgradeCard(x: number, y: number, upgrade: UpgradeUiModel): void {
+  private createUpgradeCard(x: number, y: number, upgrade: UpgradeUiModel, width = 166): void {
     const canBuy = this.model?.phase === 'intermission' && upgrade.affordable && !upgrade.maxed;
     const locked = this.model?.phase === 'wave' || (!upgrade.affordable && !upgrade.maxed);
     const fill = upgrade.maxed ? 0x25333a : canBuy ? 0x244533 : 0x22303a;
     const stroke = canBuy ? 0x58e070 : upgrade.maxed ? 0xf7d95b : 0x516a78;
-    this.createButtonSurface(this.panelLayer, x, y, 166, 88, fill, stroke, locked ? 0.72 : 1, () => {
+    this.createButtonSurface(this.panelLayer, x, y, width, 88, fill, stroke, locked ? 0.72 : 1, () => {
       if (canBuy) {
         eventBus.emit(GameEvents.UpgradeRequested, { id: upgrade.id });
       }
     });
     const icon = this.add.image(x + 26, y + 29, AssetKeys.UIIcons, upgradeIconFrames[upgrade.id] ?? iconFrames.parts).setDisplaySize(34, 34);
-    const title = this.add.text(x + 50, y + 13, upgrade.title, this.textStyle('#ffffff', 14, 104, true));
+    const textWidth = Math.max(92, width - 62);
+    const title = this.add.text(x + 50, y + 13, upgrade.title, this.textStyle('#ffffff', 14, textWidth, true));
     const level = upgrade.maxed ? 'MAX' : `Lv ${upgrade.level}/${upgrade.maxLevel}`;
     const cost = upgrade.maxed ? 'Complete' : `${upgrade.cost} parts`;
     const metaColor = canBuy ? '#b9f27c' : upgrade.maxed ? '#f7d95b' : '#9fb2d8';
-    const meta = this.add.text(x + 50, y + 35, `${level}  ${cost}`, this.textStyle(metaColor, 12, 104, true));
-    const desc = this.add.text(x + 14, y + 62, upgrade.description, this.textStyle('#c9d6d8', 11, 138));
+    const meta = this.add.text(x + 50, y + 35, `${level}  ${cost}`, this.textStyle(metaColor, 12, textWidth, true));
+    const desc = this.add.text(x + 14, y + 62, upgrade.description, this.textStyle('#c9d6d8', 11, width - 28));
     this.panelLayer.add([icon, title, meta, desc]);
   }
 
@@ -478,6 +515,16 @@ export class UIScene extends Phaser.Scene {
     this.removeEventListeners();
   }
 
+  private handleResize(): void {
+    this.createTopHud(this.title);
+    if (this.model) {
+      this.render();
+    } else {
+      this.hotspots = [];
+      this.createNavbar();
+    }
+  }
+
   private handlePointerDown(pointer: Phaser.Input.Pointer): void {
     for (let index = this.hotspots.length - 1; index >= 0; index -= 1) {
       const hotspot = this.hotspots[index];
@@ -490,6 +537,7 @@ export class UIScene extends Phaser.Scene {
 
   private removeEventListeners(): void {
     this.input.off('pointerdown', this.handlePointerDown, this);
+    this.scale.off(Phaser.Scale.Events.RESIZE, this.handleResize, this);
     eventBus.off(GameEvents.DefenseHudChanged, this.handleHudChanged, this);
     eventBus.off(GameEvents.GameplayStopped, this.handleGameplayStopped, this);
   }

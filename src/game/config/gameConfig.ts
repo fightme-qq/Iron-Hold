@@ -18,8 +18,8 @@ export const gameConfig: Phaser.Types.Core.GameConfig = {
   height: GAME_HEIGHT,
   pixelArt: false,
   scale: {
-    mode: Phaser.Scale.FIT,
-    autoCenter: Phaser.Scale.CENTER_BOTH,
+    mode: Phaser.Scale.RESIZE,
+    autoCenter: Phaser.Scale.NO_CENTER,
     width: GAME_WIDTH,
     height: GAME_HEIGHT,
   },
