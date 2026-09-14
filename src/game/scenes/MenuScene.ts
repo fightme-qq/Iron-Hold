@@ -89,6 +89,7 @@ export class MenuScene extends Phaser.Scene {
   }
 
   create(): void {
+    this.transitioning = false;
     this.selectedMap = this.getStoredSelection();
     fadeInScene(this, { durationMs: 360, color: 0x02040d });
     this.spaceLayer = this.add.container(0, 0);

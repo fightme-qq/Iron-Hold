@@ -16,6 +16,7 @@ const defaultFadeColor = 0x000000;
 const transitionFlag = 'scene-transition-active';
 
 export function fadeInScene(scene: Phaser.Scene, options: FadeOptions = {}): void {
+  scene.input.enabled = true;
   const { r, g, b } = Phaser.Display.Color.IntegerToRGB(options.color ?? defaultFadeColor);
   scene.cameras.main.fadeIn(options.durationMs ?? defaultFadeMs, r, g, b);
 }

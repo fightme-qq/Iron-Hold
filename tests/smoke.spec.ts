@@ -225,4 +225,11 @@ test('death screen can return to main menu', async ({ page }) => {
     })
     .toBe(true);
   await expect.poll(() => page.evaluate(() => window.__phaserGame?.scene.isActive('GameScene') ?? false)).toBe(false);
+
+  await page.mouse.click(box.x + box.width * 0.828, box.y + box.height * 0.947);
+  await expect
+    .poll(() => page.evaluate(() => window.__phaserGame?.scene.isActive('GameScene') ?? false), {
+      timeout: 15_000,
+    })
+    .toBe(true);
 });
