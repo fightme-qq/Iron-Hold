@@ -20,7 +20,7 @@ test('game canvas renders', async ({ page }) => {
   const box = await canvas.boundingBox();
   expect(box).not.toBeNull();
   if (box) {
-    await page.mouse.click(box.x + box.width * 0.828, box.y + box.height * 0.883);
+    await page.mouse.click(box.x + box.width * 0.828, box.y + box.height * 0.947);
   }
 
   await expect

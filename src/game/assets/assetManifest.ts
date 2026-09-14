@@ -18,6 +18,7 @@ export const AssetKeys = {
   UIIcons: 'ui-defense-icons',
   DefenseObjects: 'defense-objects',
   EnvironmentProps: 'environment-props',
+  MenuPlanets: 'menu-planets',
 } as const;
 
 export type ImageAsset = {
@@ -73,6 +74,12 @@ export const spritesheetAssets: SpritesheetAsset[] = [
     url: assetUrl('assets/spritesheets/environment-props.png?v=1'),
     frameWidth: 128,
     frameHeight: 128,
+  },
+  {
+    key: AssetKeys.MenuPlanets,
+    url: assetUrl('assets/spritesheets/menu-planets.png?v=1'),
+    frameWidth: 384,
+    frameHeight: 384,
   },
 ];
 
