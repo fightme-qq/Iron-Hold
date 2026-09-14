@@ -51,6 +51,10 @@ type RelicPoint = {
   progress: number;
   sprite: Phaser.GameObjects.Image;
   ring: Phaser.GameObjects.Arc;
+  label: Phaser.GameObjects.Text;
+  barBack: Phaser.GameObjects.Rectangle;
+  playerBar: Phaser.GameObjects.Rectangle;
+  enemyBar: Phaser.GameObjects.Rectangle;
   fireTimerMs: number;
 };
 
@@ -80,7 +84,7 @@ export class GameScene extends Phaser.Scene {
   private relicPoints: RelicPoint[] = [];
   private readonly basePosition = new Phaser.Math.Vector2(
     defenseBalance.world.width / 2,
-    defenseBalance.world.height / 2,
+    defenseBalance.world.height - 320,
   );
   private phase: DefensePhase = 'intermission';
   private activeTab: 'battle' | 'tank' | 'base' | 'map' = 'battle';
@@ -101,6 +105,7 @@ export class GameScene extends Phaser.Scene {
   private enemiesQueued: EnemyKind[] = [];
   private stageIndex = 0;
   private stageBreakTimerMs = 0;
+  private intermissionTimerMs = 0;
   private hudPublishTimerMs = 0;
   private spawnTimerMs = 0;
   private fireTimerMs = 0;
@@ -124,7 +129,7 @@ export class GameScene extends Phaser.Scene {
     this.createPhysics();
     this.createEventHandlers();
     this.scene.launch(SceneKeys.UI, { title: 'Iron Hold' });
-    this.publishHud();
+    this.startWave();
     this.time.delayedCall(0, () => this.publishHud());
 
     eventBus.emit(GameEvents.GameplayStarted, { scene: SceneKeys.Game });
@@ -156,6 +161,7 @@ export class GameScene extends Phaser.Scene {
     this.enemiesQueued = [];
     this.stageIndex = 0;
     this.stageBreakTimerMs = 0;
+    this.intermissionTimerMs = 0;
     this.hudPublishTimerMs = 0;
     this.spawnTimerMs = 0;
     this.fireTimerMs = 0;
@@ -179,6 +185,8 @@ export class GameScene extends Phaser.Scene {
       this.updateTurret(delta);
     } else if (this.phase === 'stageBreak') {
       this.updateStageBreak(delta);
+    } else if (this.phase === 'intermission') {
+      this.updateIntermission(delta);
     }
     this.updateRelicPoints(delta);
 
@@ -217,8 +225,10 @@ export class GameScene extends Phaser.Scene {
     graphics.lineStyle(3, 0x6d623f, 0.45);
     graphics.strokeRoundedRect(80, 86, defenseBalance.world.width - 160, defenseBalance.world.height - 172, 20);
     graphics.lineStyle(2, 0x6d623f, 0.22);
-    graphics.lineBetween(this.basePosition.x - 700, this.basePosition.y, this.basePosition.x + 700, this.basePosition.y);
-    graphics.lineBetween(this.basePosition.x, this.basePosition.y - 500, this.basePosition.x, this.basePosition.y + 500);
+    graphics.lineBetween(this.basePosition.x, 250, this.basePosition.x, this.basePosition.y);
+    graphics.lineBetween(this.basePosition.x - 640, 650, this.basePosition.x + 640, 650);
+    graphics.lineBetween(this.basePosition.x - 760, 1320, this.basePosition.x + 760, 1320);
+    graphics.lineBetween(this.basePosition.x - 640, 1860, this.basePosition.x + 640, 1860);
 
     this.obstacles = this.physics.add.staticGroup();
     this.barrels = this.physics.add.staticGroup();
@@ -227,13 +237,13 @@ export class GameScene extends Phaser.Scene {
       { x: 190, y: 160, key: AssetKeys.TreeSmall },
       { x: 3200, y: 260, key: AssetKeys.TreeSmall },
       { x: 260, y: 1190, key: AssetKeys.SandbagBeige },
-      { x: 3150, y: 1980, key: AssetKeys.BarrelRed, barrel: true },
+      { x: 3160, y: 1680, key: AssetKeys.BarrelRed, barrel: true },
       { x: 620, y: 210, key: AssetKeys.SandbagBeige },
-      { x: 2500, y: 260, key: AssetKeys.BarrelRed, barrel: true },
+      { x: 2360, y: 420, key: AssetKeys.BarrelRed, barrel: true },
       { x: 430, y: 760, key: AssetKeys.TreeSmall },
       { x: 2880, y: 980, key: AssetKeys.TreeSmall },
-      { x: 1450, y: 480, key: AssetKeys.BarrelRed, barrel: true },
-      { x: 1960, y: 1740, key: AssetKeys.SandbagBeige },
+      { x: 1450, y: 700, key: AssetKeys.BarrelRed, barrel: true },
+      { x: 2180, y: 1340, key: AssetKeys.SandbagBeige },
       { x: 1100, y: 1870, key: AssetKeys.BarrelRed, barrel: true },
       { x: 760, y: 1420, key: AssetKeys.SandbagBeige },
       { x: 1700, y: 1010, key: AssetKeys.TreeSmall },
@@ -248,6 +258,7 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
+    this.createEnvironmentProps();
     this.createRelicPoints();
     this.baseRing = this.add.circle(this.basePosition.x, this.basePosition.y, 62, 0x10293b, 0.9);
     this.baseRing.setStrokeStyle(5, 0xf4d35e, 0.92);
@@ -263,7 +274,7 @@ export class GameScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
     this.enemyBase = this.add
-      .image(defenseBalance.world.width - 260, 230, AssetKeys.DefenseObjects, 1)
+      .image(defenseBalance.world.width / 2, 260, AssetKeys.DefenseObjects, 1)
       .setDisplaySize(124, 124);
     this.add.text(this.enemyBase.x, this.enemyBase.y + 74, 'ENEMY BASE', {
       fontFamily: 'Trebuchet MS, Arial, sans-serif',
@@ -275,17 +286,65 @@ export class GameScene extends Phaser.Scene {
 
   private createRelicPoints(): void {
     const points = [
-      { id: 'west-relay', x: 760, y: 560 },
-      { id: 'south-relay', x: 1460, y: 1780 },
-      { id: 'east-relay', x: 2680, y: 980 },
-      { id: 'north-relay', x: 1800, y: 520 },
+      { id: 'north-relay', x: 1800, y: 690 },
+      { id: 'west-relay', x: 1040, y: 1220 },
+      { id: 'east-relay', x: 2560, y: 1220 },
+      { id: 'south-relay', x: 1800, y: 1760 },
     ];
 
-    for (const point of points) {
+    for (const [index, point] of points.entries()) {
       const ring = this.add.circle(point.x, point.y, defenseBalance.relic.captureRadius, 0x9aa4a8, 0.08);
       ring.setStrokeStyle(3, 0xd8e2f8, 0.42);
       const sprite = this.add.image(point.x, point.y, AssetKeys.DefenseObjects, 2).setDisplaySize(82, 82);
-      this.relicPoints.push({ ...point, owner: 'neutral', progress: 0, sprite, ring, fireTimerMs: 0 });
+      const label = this.add
+        .text(point.x, point.y + 62, `R${index + 1}`, {
+          fontFamily: 'Trebuchet MS, Arial, sans-serif',
+          fontSize: '14px',
+          color: '#d8e2f8',
+          fontStyle: 'bold',
+        })
+        .setOrigin(0.5);
+      const barBack = this.add.rectangle(point.x, point.y - 66, 92, 10, 0x101820, 0.78).setStrokeStyle(1, 0xd8e2f8, 0.45);
+      const playerBar = this.add.rectangle(point.x, point.y - 66, 0, 6, 0x2fb4ff, 0.95).setOrigin(0, 0.5);
+      const enemyBar = this.add.rectangle(point.x, point.y - 66, 0, 6, 0xff6b4a, 0.95).setOrigin(1, 0.5);
+      ring.setDepth(point.y - 4);
+      sprite.setDepth(point.y);
+      label.setDepth(point.y + 2);
+      barBack.setDepth(point.y + 3);
+      playerBar.setDepth(point.y + 4);
+      enemyBar.setDepth(point.y + 4);
+      this.relicPoints.push({ ...point, owner: 'neutral', progress: 0, sprite, ring, label, barBack, playerBar, enemyBar, fireTimerMs: 0 });
+    }
+  }
+
+  private createEnvironmentProps(): void {
+    const props = [
+      { x: 900, y: 430, frame: 0, collide: true, scale: 0.95 },
+      { x: 2290, y: 600, frame: 1, collide: true, scale: 0.88 },
+      { x: 1490, y: 930, frame: 2, scale: 1.15 },
+      { x: 2120, y: 950, frame: 3, collide: true, scale: 0.82 },
+      { x: 1200, y: 1540, frame: 4, collide: true, scale: 0.9 },
+      { x: 2920, y: 1420, frame: 5, collide: true, scale: 1.05 },
+      { x: 710, y: 1880, frame: 6, collide: true, scale: 0.9 },
+      { x: 2440, y: 1890, frame: 7, collide: true, scale: 0.86 },
+      { x: 1760, y: 1320, frame: 8, scale: 1.05 },
+      { x: 3080, y: 720, frame: 0, collide: true, scale: 0.8 },
+      { x: 520, y: 880, frame: 5, collide: true, scale: 0.86 },
+      { x: 1420, y: 2120, frame: 2, scale: 0.9 },
+      { x: 2140, y: 2140, frame: 8, scale: 0.95 },
+      { x: 2260, y: 1960, frame: 0, collide: true, scale: 0.72 },
+      { x: 1480, y: 1840, frame: 3, collide: true, scale: 0.68 },
+      { x: 1960, y: 2060, frame: 6, collide: true, scale: 0.7 },
+    ];
+
+    for (const prop of props) {
+      if (prop.collide) {
+        const body = this.obstacles.create(prop.x, prop.y, AssetKeys.EnvironmentProps, prop.frame) as Phaser.Physics.Arcade.Image;
+        body.setScale(prop.scale).setDepth(prop.y).refreshBody();
+        body.body?.setSize(62, 54);
+      } else {
+        this.add.image(prop.x, prop.y, AssetKeys.EnvironmentProps, prop.frame).setScale(prop.scale).setDepth(prop.y - 2).setAlpha(0.94);
+      }
     }
   }
 
@@ -294,7 +353,7 @@ export class GameScene extends Phaser.Scene {
     this.bullets = this.physics.add.group();
     this.drops = this.physics.add.group();
     this.playerInput = new PlayerInput(this);
-    this.player = this.physics.add.image(this.basePosition.x, this.basePosition.y + 160, AssetKeys.PlayerTank);
+    this.player = this.physics.add.image(this.basePosition.x, this.basePosition.y - 160, AssetKeys.PlayerTank);
     this.player.setDisplaySize(54, 54);
     this.player.setRotation(this.playerHullRotation + Math.PI / 2);
     this.player.setCollideWorldBounds(true);
@@ -518,8 +577,19 @@ export class GameScene extends Phaser.Scene {
       }
 
       point.ring.setAlpha(0.16 + Math.abs(point.progress) * 0.16);
+      this.updateRelicCaptureBar(point);
       this.updateRelicFire(point, delta);
     }
+  }
+
+  private updateRelicCaptureBar(point: RelicPoint): void {
+    const playerWidth = Math.max(0, point.progress) * 44;
+    const enemyWidth = Math.max(0, -point.progress) * 44;
+    point.playerBar.setDisplaySize(playerWidth, 6);
+    point.enemyBar.setDisplaySize(enemyWidth, 6);
+    point.barBack.setVisible(Math.abs(point.progress) > 0.03 || point.owner !== 'neutral');
+    point.playerBar.setVisible(playerWidth > 1);
+    point.enemyBar.setVisible(enemyWidth > 1);
   }
 
   private updateRelicFire(point: RelicPoint, delta: number): void {
@@ -570,6 +640,13 @@ export class GameScene extends Phaser.Scene {
     this.stageBreakTimerMs -= delta;
     if (this.stageBreakTimerMs <= 0) {
       this.startStage();
+    }
+  }
+
+  private updateIntermission(delta: number): void {
+    this.intermissionTimerMs -= delta;
+    if (this.intermissionTimerMs <= 0) {
+      this.startWave();
     }
   }
 
@@ -688,7 +765,8 @@ export class GameScene extends Phaser.Scene {
       eventBus.emit(GameEvents.RunStateChanged, { phase: 'won' });
     } else {
       this.phase = 'intermission';
-      this.status = `Wave cleared. Base bonus: +${bonus} parts. Upgrade before wave ${this.waveIndex + 1}.`;
+      this.intermissionTimerMs = defenseBalance.stages.intermissionMs;
+      this.status = `Wave cleared. Base bonus: +${bonus} parts. Auto-deploying wave ${this.waveIndex + 1}.`;
     }
 
     this.publishHud();

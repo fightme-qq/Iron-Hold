@@ -215,27 +215,23 @@ export class UIScene extends Phaser.Scene {
 
   private createActionButton(x: number, y: number): void {
     const phase = this.model?.phase ?? 'intermission';
-    const disabled = phase === 'wave';
     const restarting = phase === 'won' || phase === 'lost';
-    const label = disabled ? 'Wave Active' : restarting ? 'Restart' : 'Start Wave';
-    const frame = restarting ? iconFrames.restart : iconFrames.play;
-    const fill = disabled ? 0x3e4b51 : restarting ? 0xf26f55 : 0x58e070;
-    const stroke = disabled ? 0x5c6a70 : 0xdfffe6;
-    this.createButtonSurface(this.navLayer, x, y, 188, 56, fill, stroke, disabled ? 0.62 : 1, () => {
-      if (disabled) return;
-      eventBus.emit(restarting ? GameEvents.RestartRequested : GameEvents.StartWaveRequested, {});
+    if (!restarting) {
+      return;
+    }
+
+    this.createButtonSurface(this.navLayer, x, y, 188, 56, 0xf26f55, 0xdfffe6, 1, () => {
+      eventBus.emit(GameEvents.RestartRequested, {});
     });
-    const icon = this.add.image(x + 34, y + 28, AssetKeys.UIIcons, frame).setDisplaySize(30, 30);
+    const icon = this.add.image(x + 34, y + 28, AssetKeys.UIIcons, iconFrames.restart).setDisplaySize(30, 30);
     const text = this.add
-      .text(x + 112, y + 29, label, {
+      .text(x + 112, y + 29, 'Restart', {
         fontFamily: 'Trebuchet MS, Arial, sans-serif',
         fontSize: '16px',
         color: '#101820',
         fontStyle: 'bold',
       })
       .setOrigin(0.5);
-    text.setAlpha(disabled ? 0.72 : 1);
-    icon.setAlpha(disabled ? 0.72 : 1);
     this.navLayer.add([icon, text]);
   }
 
@@ -371,11 +367,14 @@ export class UIScene extends Phaser.Scene {
     graphics.fillCircle(base.x, base.y, this.model.minimap.visionRadius * 0.55 * visionScale);
 
     for (const relic of this.model.minimap.relics) {
-      if (!relic.visible) continue;
       const dot = toMap(relic);
       const color = relic.owner === 'player' ? 0x2fb4ff : relic.owner === 'enemy' ? 0xff6b4a : 0xd8e2f8;
-      graphics.lineStyle(1, color, 0.9);
+      graphics.lineStyle(1, color, relic.visible ? 0.9 : 0.38);
       graphics.strokeCircle(dot.x, dot.y, 4);
+      if (!relic.visible) {
+        graphics.fillStyle(0x9fb2d8, 0.16);
+        graphics.fillCircle(dot.x, dot.y, 2);
+      }
       if (relic.owner === 'player') {
         graphics.fillStyle(0x2fb4ff, 0.09);
         graphics.fillCircle(dot.x, dot.y, this.model.minimap.visionRadius * 0.72 * visionScale);

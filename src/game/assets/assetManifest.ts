@@ -17,6 +17,7 @@ export const AssetKeys = {
   SmokeOrange: 'smoke-orange-0',
   UIIcons: 'ui-defense-icons',
   DefenseObjects: 'defense-objects',
+  EnvironmentProps: 'environment-props',
 } as const;
 
 export type ImageAsset = {
@@ -66,6 +67,12 @@ export const spritesheetAssets: SpritesheetAsset[] = [
     url: assetUrl('assets/spritesheets/defense-objects.png?v=1'),
     frameWidth: 96,
     frameHeight: 96,
+  },
+  {
+    key: AssetKeys.EnvironmentProps,
+    url: assetUrl('assets/spritesheets/environment-props.png?v=1'),
+    frameWidth: 128,
+    frameHeight: 128,
   },
 ];
 

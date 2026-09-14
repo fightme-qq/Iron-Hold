@@ -60,6 +60,7 @@ export const defenseBalance = {
   },
   stages: {
     breakMs: 1800,
+    intermissionMs: 6000,
   },
   turret: {
     range: 280,
