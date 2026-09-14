@@ -54,6 +54,44 @@ test('game canvas renders', async ({ page }) => {
   expect(gameState?.elapsedMs).toBeGreaterThan(0);
 });
 
+test('tank fires from lower gameplay area on resized canvas', async ({ page }) => {
+  await page.goto('/');
+  const canvas = page.locator('canvas');
+  await expect(canvas).toBeVisible();
+  await expect
+    .poll(() => page.evaluate(() => window.__phaserGame?.scene.isActive('MenuScene') ?? false), {
+      timeout: 15_000,
+    })
+    .toBe(true);
+
+  const box = await canvas.boundingBox();
+  expect(box).not.toBeNull();
+  if (!box) return;
+
+  await page.mouse.click(box.x + box.width * 0.828, box.y + box.height * 0.947);
+  await expect
+    .poll(() => page.evaluate(() => window.__phaserGame?.scene.isActive('GameScene') ?? false), {
+      timeout: 15_000,
+    })
+    .toBe(true);
+
+  await page.mouse.move(box.x + box.width * 0.5, box.y + box.height * 0.7);
+  await page.mouse.down();
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const scene = window.__phaserGame?.scene.getScene('GameScene') as unknown as
+          | { getDebugSnapshot?: () => { bulletCount: number } }
+          | undefined;
+
+        return scene?.getDebugSnapshot?.().bulletCount ?? 0;
+      }),
+      { timeout: 3_000 },
+    )
+    .toBeGreaterThan(0);
+  await page.mouse.up();
+});
+
 test('death screen can return to main menu', async ({ page }) => {
   await page.goto('/');
   const canvas = page.locator('canvas');

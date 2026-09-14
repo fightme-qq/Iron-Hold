@@ -124,7 +124,6 @@ export class GameScene extends Phaser.Scene {
   private elapsedMs = 0;
   private status = 'Wave 1 is ready. Protect the repair base.';
   private sectorTitle = 'Iron Hold';
-  private readonly hudPanelTop = 552;
   private playerForwardSpeed = 0;
   private playerHullRotation = -Math.PI / 2;
 
@@ -219,7 +218,15 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  getDebugSnapshot(): { elapsedMs: number; phase: string; wave: number; baseHp: number; playerHp: number; parts: number } {
+  getDebugSnapshot(): {
+    elapsedMs: number;
+    phase: string;
+    wave: number;
+    baseHp: number;
+    playerHp: number;
+    parts: number;
+    bulletCount: number;
+  } {
     return {
       elapsedMs: this.elapsedMs,
       phase: this.phase === 'lost' ? 'lost' : this.phase === 'won' ? 'won' : 'playing',
@@ -227,6 +234,7 @@ export class GameScene extends Phaser.Scene {
       baseHp: this.baseHp,
       playerHp: this.playerHp,
       parts: this.parts,
+      bulletCount: this.bulletActors.size,
     };
   }
 
@@ -488,11 +496,15 @@ export class GameScene extends Phaser.Scene {
     this.keepPlayerInsideBattlefield();
 
     this.fireTimerMs -= delta;
-    const firingInBattlefield = this.playerInput.isFireKeyDown() || this.playerInput.isPointerInScreenArea(this.hudPanelTop);
+    const firingInBattlefield = this.playerInput.isFireKeyDown() || this.playerInput.isPointerInScreenArea(this.getGameplayPointerMaxY());
     if (this.phase === 'wave' && firingInBattlefield && this.fireTimerMs <= 0) {
       this.fireTimerMs = this.getFireCooldown();
       this.fireBullet(this.player.x, this.player.y, angle, this.getPlayerDamage(), 'player');
     }
+  }
+
+  private getGameplayPointerMaxY(): number {
+    return Math.max(120, this.scale.height - 160);
   }
 
   private keepPlayerInsideBattlefield(): void {
