@@ -49,12 +49,15 @@ type RelicPoint = {
   y: number;
   owner: Team;
   progress: number;
+  active: boolean;
+  hp: number;
+  maxHp: number;
   sprite: Phaser.GameObjects.Image;
   ring: Phaser.GameObjects.Arc;
   label: Phaser.GameObjects.Text;
-  barBack: Phaser.GameObjects.Rectangle;
-  playerBar: Phaser.GameObjects.Rectangle;
-  enemyBar: Phaser.GameObjects.Rectangle;
+  progressArc: Phaser.GameObjects.Graphics;
+  hpBack: Phaser.GameObjects.Rectangle;
+  hpFill: Phaser.GameObjects.Rectangle;
   fireTimerMs: number;
 };
 
@@ -69,6 +72,8 @@ export class GameScene extends Phaser.Scene {
   private playerBarrel!: Phaser.GameObjects.Image;
   private baseCore!: Phaser.GameObjects.Rectangle;
   private baseRing!: Phaser.GameObjects.Arc;
+  private playerHpBack!: Phaser.GameObjects.Rectangle;
+  private playerHpFill!: Phaser.GameObjects.Rectangle;
   private enemyBase!: Phaser.GameObjects.Image;
   private turretBase?: Phaser.GameObjects.Image;
   private turretBarrel?: Phaser.GameObjects.Image;
@@ -296,6 +301,7 @@ export class GameScene extends Phaser.Scene {
       const ring = this.add.circle(point.x, point.y, defenseBalance.relic.captureRadius, 0x9aa4a8, 0.08);
       ring.setStrokeStyle(3, 0xd8e2f8, 0.42);
       const sprite = this.add.image(point.x, point.y, AssetKeys.DefenseObjects, 2).setDisplaySize(82, 82);
+      const progressArc = this.add.graphics();
       const label = this.add
         .text(point.x, point.y + 62, `R${index + 1}`, {
           fontFamily: 'Trebuchet MS, Arial, sans-serif',
@@ -304,16 +310,31 @@ export class GameScene extends Phaser.Scene {
           fontStyle: 'bold',
         })
         .setOrigin(0.5);
-      const barBack = this.add.rectangle(point.x, point.y - 66, 92, 10, 0x101820, 0.78).setStrokeStyle(1, 0xd8e2f8, 0.45);
-      const playerBar = this.add.rectangle(point.x, point.y - 66, 0, 6, 0x2fb4ff, 0.95).setOrigin(0, 0.5);
-      const enemyBar = this.add.rectangle(point.x, point.y - 66, 0, 6, 0xff6b4a, 0.95).setOrigin(1, 0.5);
-      ring.setDepth(point.y - 4);
-      sprite.setDepth(point.y);
+      const hpBack = this.add.rectangle(point.x, point.y - 58, 70, 7, 0x101820, 0.78).setStrokeStyle(1, 0xd8e2f8, 0.4);
+      const hpFill = this.add.rectangle(point.x - 35, point.y - 58, 70, 5, 0x58e070, 0.96).setOrigin(0, 0.5);
+      ring.setDepth(point.y - 5);
+      progressArc.setDepth(point.y + 3);
+      sprite.setDepth(point.y - 1);
       label.setDepth(point.y + 2);
-      barBack.setDepth(point.y + 3);
-      playerBar.setDepth(point.y + 4);
-      enemyBar.setDepth(point.y + 4);
-      this.relicPoints.push({ ...point, owner: 'neutral', progress: 0, sprite, ring, label, barBack, playerBar, enemyBar, fireTimerMs: 0 });
+      hpBack.setDepth(point.y + 4);
+      hpFill.setDepth(point.y + 5);
+      hpBack.setVisible(false);
+      hpFill.setVisible(false);
+      this.relicPoints.push({
+        ...point,
+        owner: 'neutral',
+        progress: 0,
+        active: false,
+        hp: 0,
+        maxHp: defenseBalance.relic.bunkerHp,
+        sprite,
+        ring,
+        label,
+        progressArc,
+        hpBack,
+        hpFill,
+        fireTimerMs: 0,
+      });
     }
   }
 
@@ -357,11 +378,13 @@ export class GameScene extends Phaser.Scene {
     this.player.setDisplaySize(54, 54);
     this.player.setRotation(this.playerHullRotation + Math.PI / 2);
     this.player.setCollideWorldBounds(true);
-    this.player.body?.setSize(42, 42);
+    this.player.body?.setSize(52, 52);
     this.playerBarrel = this.add
       .image(this.player.x, this.player.y, AssetKeys.PlayerBarrel)
       .setOrigin(0.5, 0.78)
       .setDisplaySize(18, 46);
+    this.playerHpBack = this.add.rectangle(this.player.x, this.player.y - 46, 52, 7, 0x101820, 0.82).setStrokeStyle(1, 0xd8e2f8, 0.45);
+    this.playerHpFill = this.add.rectangle(this.player.x - 26, this.player.y - 46, 52, 5, 0x58e070, 0.96).setOrigin(0, 0.5);
     this.cameras.main.startFollow(this.player, true, 0.08, 0.08);
     this.cameras.main.setDeadzone(this.scale.width * 0.24, this.scale.height * 0.2);
   }
@@ -422,6 +445,7 @@ export class GameScene extends Phaser.Scene {
     const angle = Phaser.Math.Angle.Between(this.player.x, this.player.y, aim.x, aim.y);
     this.playerBarrel.setPosition(this.player.x, this.player.y);
     this.playerBarrel.setRotation(angle + Math.PI / 2);
+    this.updatePlayerHpBar();
     this.keepPlayerInsideBattlefield();
 
     this.fireTimerMs -= delta;
@@ -447,6 +471,15 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  private updatePlayerHpBar(): void {
+    const hpRatio = Phaser.Math.Clamp(this.playerHp / defenseBalance.player.maxHp, 0, 1);
+    this.playerHpBack.setPosition(this.player.x, this.player.y - 46);
+    this.playerHpFill.setPosition(this.player.x - 26, this.player.y - 46);
+    this.playerHpFill.setDisplaySize(52 * hpRatio, 5);
+    const color = hpRatio > 0.55 ? 0x58e070 : hpRatio > 0.25 ? 0xf7d95b : 0xff6b4a;
+    this.playerHpFill.setFillStyle(color, 0.96);
+  }
+
   private updateEnemies(): void {
     for (const actor of this.enemyActors.values()) {
       const target = this.getEnemyMoveTarget(actor);
@@ -465,8 +498,10 @@ export class GameScene extends Phaser.Scene {
 
     this.baseRing.setScale(1 + Math.sin(this.elapsedMs / 260) * 0.018);
     this.baseCore.setRotation(Math.sin(this.elapsedMs / 480) * 0.015);
-    this.player.setDepth(this.player.y);
-    this.playerBarrel.setDepth(this.player.y + 1);
+    this.player.setDepth(20000);
+    this.playerBarrel.setDepth(20001);
+    this.playerHpBack.setDepth(20002);
+    this.playerHpFill.setDepth(20003);
   }
 
   private updateEnemyTurret(actor: EnemyActor): void {
@@ -507,7 +542,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     const playerRelic = this.relicPoints
-      .filter((point) => point.owner === 'player')
+      .filter((point) => point.owner === 'player' && point.active)
       .sort(
         (a, b) =>
           Phaser.Math.Distance.Between(actor.body.x, actor.body.y, a.x, a.y) -
@@ -523,6 +558,10 @@ export class GameScene extends Phaser.Scene {
 
   private updateBullets(): void {
     for (const bullet of this.bulletActors.keys()) {
+      if (this.tryHitRelicBunker(bullet)) {
+        continue;
+      }
+
       if (
         bullet.x < -40 ||
         bullet.x > defenseBalance.world.width + 40 ||
@@ -532,6 +571,53 @@ export class GameScene extends Phaser.Scene {
         this.destroyBullet(bullet);
       }
     }
+  }
+
+  private tryHitRelicBunker(bullet: Phaser.Physics.Arcade.Image): boolean {
+    const bulletActor = this.bulletActors.get(bullet);
+    if (!bulletActor) {
+      return false;
+    }
+
+    for (const point of this.relicPoints) {
+      if (!point.active || point.owner === 'neutral') {
+        continue;
+      }
+
+      const hostileToBunker =
+        (point.owner === 'player' && bulletActor.owner === 'enemy') ||
+        (point.owner === 'enemy' && bulletActor.owner !== 'enemy');
+      if (!hostileToBunker) {
+        continue;
+      }
+
+      if (Phaser.Math.Distance.Between(bullet.x, bullet.y, point.x, point.y) <= 44) {
+        this.damageRelicBunker(point, bulletActor.damage);
+        this.destroyBullet(bullet);
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  private damageRelicBunker(point: RelicPoint, damage: number): void {
+    point.hp = Math.max(0, point.hp - damage);
+    this.flashAt(point.x, point.y, point.owner === 'player' ? 0x2fb4ff : 0xff6b4a, 24);
+
+    if (point.hp > 0) {
+      return;
+    }
+
+    point.active = false;
+    point.progress = point.owner === 'player' ? 0.35 : -0.35;
+    point.sprite.setFrame(point.owner === 'player' ? 3 : 4);
+    point.sprite.setDisplaySize(82, 82);
+    point.ring.setStrokeStyle(4, point.owner === 'player' ? 0x2fb4ff : 0xff6b4a, 0.45);
+    this.status = `${point.id} bunker destroyed. Rebuild it by holding the point.`;
+    this.addSmoke(point.x, point.y, true);
+    this.updateRelicHud(point);
+    this.publishHud();
   }
 
   private updateDrops(time: number): void {
@@ -554,46 +640,63 @@ export class GameScene extends Phaser.Scene {
 
       if (direction !== 0) {
         point.progress = Phaser.Math.Clamp(point.progress + (direction * delta) / (defenseBalance.relic.captureSeconds * 1000), -1, 1);
-      } else {
+      } else if (point.owner === 'neutral') {
         point.progress *= 0.985;
       }
 
-      if (point.progress >= 1 && point.owner !== 'player') {
+      if (point.progress >= 1 && (point.owner !== 'player' || (!point.active && playerInside && enemiesInside === 0))) {
         point.owner = 'player';
         point.progress = 1;
-        point.sprite.setFrame(3);
+        point.active = true;
+        point.hp = point.maxHp;
+        point.sprite.setFrame(0);
+        point.sprite.setDisplaySize(74, 74);
         point.ring.setStrokeStyle(4, 0x2fb4ff, 0.9);
-        this.status = `${point.id} captured. It will fire on enemies nearby.`;
-      } else if (point.progress <= -1 && point.owner !== 'enemy') {
+        this.status = `${point.id} bunker online. It will fire on enemies nearby.`;
+      } else if (point.progress <= -1 && (point.owner !== 'enemy' || (!point.active && enemiesInside > 0 && !playerInside))) {
         point.owner = 'enemy';
         point.progress = -1;
-        point.sprite.setFrame(4);
+        point.active = true;
+        point.hp = point.maxHp;
+        point.sprite.setFrame(1);
+        point.sprite.setDisplaySize(74, 74);
         point.ring.setStrokeStyle(4, 0xff6b4a, 0.9);
-        this.status = `${point.id} fell to enemy control.`;
+        this.status = `${point.id} enemy bunker online.`;
       } else if (Math.abs(point.progress) < 0.08 && point.owner !== 'neutral') {
         point.owner = 'neutral';
+        point.active = false;
+        point.hp = 0;
         point.sprite.setFrame(2);
+        point.sprite.setDisplaySize(82, 82);
         point.ring.setStrokeStyle(3, 0xd8e2f8, 0.42);
       }
 
       point.ring.setAlpha(0.16 + Math.abs(point.progress) * 0.16);
-      this.updateRelicCaptureBar(point);
+      this.updateRelicHud(point);
       this.updateRelicFire(point, delta);
     }
   }
 
-  private updateRelicCaptureBar(point: RelicPoint): void {
-    const playerWidth = Math.max(0, point.progress) * 44;
-    const enemyWidth = Math.max(0, -point.progress) * 44;
-    point.playerBar.setDisplaySize(playerWidth, 6);
-    point.enemyBar.setDisplaySize(enemyWidth, 6);
-    point.barBack.setVisible(Math.abs(point.progress) > 0.03 || point.owner !== 'neutral');
-    point.playerBar.setVisible(playerWidth > 1);
-    point.enemyBar.setVisible(enemyWidth > 1);
+  private updateRelicHud(point: RelicPoint): void {
+    point.progressArc.clear();
+    const amount = Math.abs(point.progress);
+    if (amount > 0.03) {
+      const color = point.progress >= 0 ? 0x2fb4ff : 0xff6b4a;
+      point.progressArc.lineStyle(7, color, 0.92);
+      point.progressArc.beginPath();
+      point.progressArc.arc(point.x, point.y, 54, -Math.PI / 2, -Math.PI / 2 + amount * Math.PI * 2, false);
+      point.progressArc.strokePath();
+    }
+
+    const hpRatio = point.maxHp > 0 ? Phaser.Math.Clamp(point.hp / point.maxHp, 0, 1) : 0;
+    point.hpBack.setVisible(point.active);
+    point.hpFill.setVisible(point.active);
+    point.hpFill.setDisplaySize(70 * hpRatio, 5);
+    point.hpFill.setFillStyle(point.owner === 'player' ? 0x58e070 : 0xff6b4a, 0.96);
   }
 
   private updateRelicFire(point: RelicPoint, delta: number): void {
-    if (point.owner === 'neutral') {
+    if (point.owner === 'neutral' || !point.active) {
       return;
     }
 

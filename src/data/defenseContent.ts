@@ -51,7 +51,7 @@ export const defenseBalance = {
   },
   enemy: {
     bulletSpeed: 430,
-    fireCooldownMs: 1250,
+    fireCooldownMs: 1900,
     range: 520,
   },
   world: {
@@ -68,10 +68,11 @@ export const defenseBalance = {
     damage: 1,
   },
   relic: {
-    captureRadius: 105,
+    captureRadius: 135,
     captureSeconds: 3.2,
     attackRadius: 430,
     fireCooldownMs: 850,
+    bunkerHp: 6,
   },
 } as const;
 

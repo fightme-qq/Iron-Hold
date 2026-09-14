@@ -237,9 +237,7 @@ export class UIScene extends Phaser.Scene {
 
   private handleHudChanged(model: DefenseHudModel): void {
     this.model = model;
-    if (model.phase === 'wave') {
-      this.activeTab = 'battle';
-    } else if (!this.activeTab) {
+    if (!this.activeTab) {
       this.activeTab = model.activeTab;
     }
 
