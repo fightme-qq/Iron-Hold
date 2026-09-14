@@ -1,0 +1,225 @@
+{
+  "projectType": "phaser-mobile-desktop-game",
+  "generatedBy": "Phaser Game Creator",
+  "primaryTarget": "desktop",
+  "yandexGames": false,
+  "idlePack": true,
+  "firstRead": [
+    "AGENTS.md",
+    "AGENT_WORKFLOW.md",
+    "scripts/agent-audit.mjs",
+    "docs/game-design-intake.md",
+    "docs/first-playable-contract.md",
+    "docs/validation-matrix.md",
+    "docs/quality-gates.md",
+    "docs/game-creator-guide.md",
+    "docs/first-playable-loop.md",
+    "skills/README.md",
+    "skills/_meta/task-map.md",
+    "skills/_meta/source-registry.md"
+  ],
+  "agentOperatingLoop": "AGENT_WORKFLOW.md",
+  "contextAnchor": "AGENTS.md",
+  "designIntake": "docs/game-design-intake.md",
+  "firstPlayableContract": "docs/first-playable-contract.md",
+  "validationMatrix": "docs/validation-matrix.md",
+  "qualityGates": "docs/quality-gates.md",
+  "featureRecipes": "docs/feature-recipes/",
+  "genreBlueprints": "docs/genre-blueprints/",
+  "moduleTemplates": "templates/modules/",
+  "decisions": "docs/decisions/",
+  "skills": [
+    {
+      "name": "phaser-game-design-interviewer",
+      "path": "skills/phaser-game-design-interviewer/SKILL.md"
+    },
+    {
+      "name": "phaser-first-playable-builder",
+      "path": "skills/phaser-first-playable-builder/SKILL.md"
+    },
+    {
+      "name": "phaser-feature-slicer",
+      "path": "skills/phaser-feature-slicer/SKILL.md"
+    },
+    {
+      "name": "phaser-refactor-guardian",
+      "path": "skills/phaser-refactor-guardian/SKILL.md"
+    },
+    {
+      "name": "phaser-error-recovery-debugger",
+      "path": "skills/phaser-error-recovery-debugger/SKILL.md"
+    },
+    {
+      "name": "phaser-version-docs-sync",
+      "path": "skills/phaser-version-docs-sync/SKILL.md"
+    },
+    {
+      "name": "phaser-state-machine-patterns",
+      "path": "skills/phaser-state-machine-patterns/SKILL.md"
+    },
+    {
+      "name": "phaser-physics-collision-designer",
+      "path": "skills/phaser-physics-collision-designer/SKILL.md"
+    },
+    {
+      "name": "phaser-camera-level-design",
+      "path": "skills/phaser-camera-level-design/SKILL.md"
+    },
+    {
+      "name": "phaser-content-pipeline",
+      "path": "skills/phaser-content-pipeline/SKILL.md"
+    },
+    {
+      "name": "phaser-save-schema-migrations",
+      "path": "skills/phaser-save-schema-migrations/SKILL.md"
+    },
+    {
+      "name": "phaser-progression-economy",
+      "path": "skills/phaser-progression-economy/SKILL.md"
+    },
+    {
+      "name": "phaser-accessibility-localization",
+      "path": "skills/phaser-accessibility-localization/SKILL.md"
+    },
+    {
+      "name": "phaser-release-platforms",
+      "path": "skills/phaser-release-platforms/SKILL.md"
+    },
+    {
+      "name": "phaser-ai-art-asset-brief",
+      "path": "skills/phaser-ai-art-asset-brief/SKILL.md"
+    },
+    {
+      "name": "phaser-visual-taste",
+      "path": "skills/phaser-visual-taste/SKILL.md"
+    },
+    {
+      "name": "phaser-ui-redesign-auditor",
+      "path": "skills/phaser-ui-redesign-auditor/SKILL.md"
+    },
+    {
+      "name": "phaser-brandkit-brief",
+      "path": "skills/phaser-brandkit-brief/SKILL.md"
+    },
+    {
+      "name": "phaser-project-architect",
+      "path": "skills/phaser-project-architect/SKILL.md"
+    },
+    {
+      "name": "phaser-scene-workflow",
+      "path": "skills/phaser-scene-workflow/SKILL.md"
+    },
+    {
+      "name": "phaser-assets-pipeline",
+      "path": "skills/phaser-assets-pipeline/SKILL.md"
+    },
+    {
+      "name": "phaser-input-mobile-desktop",
+      "path": "skills/phaser-input-mobile-desktop/SKILL.md"
+    },
+    {
+      "name": "phaser-responsive-layout",
+      "path": "skills/phaser-responsive-layout/SKILL.md"
+    },
+    {
+      "name": "phaser-game-systems",
+      "path": "skills/phaser-game-systems/SKILL.md"
+    },
+    {
+      "name": "phaser-ui-hud",
+      "path": "skills/phaser-ui-hud/SKILL.md"
+    },
+    {
+      "name": "phaser-gamefeel",
+      "path": "skills/phaser-gamefeel/SKILL.md"
+    },
+    {
+      "name": "phaser-spritesheet-pipeline",
+      "path": "skills/phaser-spritesheet-pipeline/SKILL.md"
+    },
+    {
+      "name": "phaser-tilemaps-tiled",
+      "path": "skills/phaser-tilemaps-tiled/SKILL.md"
+    },
+    {
+      "name": "phaser-audio-sfx",
+      "path": "skills/phaser-audio-sfx/SKILL.md"
+    },
+    {
+      "name": "phaser-debug-performance",
+      "path": "skills/phaser-debug-performance/SKILL.md"
+    },
+    {
+      "name": "phaser-programmatic-art",
+      "path": "skills/phaser-programmatic-art/SKILL.md"
+    },
+    {
+      "name": "phaser-testing",
+      "path": "skills/phaser-testing/SKILL.md"
+    },
+    {
+      "name": "phaser-generator-feedback-reporter",
+      "path": "skills/phaser-generator-feedback-reporter/SKILL.md"
+    },
+    {
+      "name": "phaser-skill-pack-maintainer",
+      "path": "skills/phaser-skill-pack-maintainer/SKILL.md"
+    },
+    {
+      "name": "phaser-idle-game-architect",
+      "path": "skills/phaser-idle-game-architect/SKILL.md"
+    },
+    {
+      "name": "phaser-idle-economy-balancer",
+      "path": "skills/phaser-idle-economy-balancer/SKILL.md"
+    },
+    {
+      "name": "phaser-idle-ui-feedback",
+      "path": "skills/phaser-idle-ui-feedback/SKILL.md"
+    },
+    {
+      "name": "phaser-idle-offline-prestige",
+      "path": "skills/phaser-idle-offline-prestige/SKILL.md"
+    }
+  ],
+  "routing": {
+    "gameDesignIntake": "phaser-game-design-interviewer",
+    "firstPlayableBuilder": "phaser-first-playable-builder",
+    "featureSlicing": "phaser-feature-slicer",
+    "refactorGuard": "phaser-refactor-guardian",
+    "errorRecovery": "phaser-error-recovery-debugger",
+    "versionDocsSync": "phaser-version-docs-sync",
+    "stateMachines": "phaser-state-machine-patterns",
+    "physicsCollision": "phaser-physics-collision-designer",
+    "cameraLevelDesign": "phaser-camera-level-design",
+    "contentPipeline": "phaser-content-pipeline",
+    "saveMigrations": "phaser-save-schema-migrations",
+    "progressionEconomy": "phaser-progression-economy",
+    "idleArchitecture": "phaser-idle-game-architect",
+    "idleEconomyBalancing": "phaser-idle-economy-balancer",
+    "idleUiFeedback": "phaser-idle-ui-feedback",
+    "idleOfflinePrestige": "phaser-idle-offline-prestige",
+    "accessibilityLocalization": "phaser-accessibility-localization",
+    "releasePlatforms": "phaser-release-platforms",
+    "aiArtAssetBrief": "phaser-ai-art-asset-brief",
+    "visualTaste": "phaser-visual-taste",
+    "uiRedesignAudit": "phaser-ui-redesign-auditor",
+    "brandkitBrief": "phaser-brandkit-brief",
+    "architecture": "phaser-project-architect",
+    "scenes": "phaser-scene-workflow",
+    "assets": "phaser-assets-pipeline",
+    "input": "phaser-input-mobile-desktop",
+    "responsiveLayout": "phaser-responsive-layout",
+    "systems": "phaser-game-systems",
+    "ui": "phaser-ui-hud",
+    "gamefeel": "phaser-gamefeel",
+    "spritesheetPipeline": "phaser-spritesheet-pipeline",
+    "tilemaps": "phaser-tilemaps-tiled",
+    "audio": "phaser-audio-sfx",
+    "debugPerformance": "phaser-debug-performance",
+    "programmaticArt": "phaser-programmatic-art",
+    "testing": "phaser-testing",
+    "generatorFeedback": "phaser-generator-feedback-reporter",
+    "skillMaintenance": "phaser-skill-pack-maintainer"
+  }
+}
