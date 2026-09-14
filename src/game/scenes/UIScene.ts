@@ -356,26 +356,14 @@ export class UIScene extends Phaser.Scene {
     graphics.lineStyle(1, 0xd8e2f8, 0.65);
     graphics.strokeRect(viewX, viewY, viewW, viewH);
 
-    const visionScale = Math.min(innerW / this.model.minimap.worldWidth, innerH / this.model.minimap.worldHeight);
-    graphics.fillStyle(0x081014, 0.48);
-    graphics.fillRect(innerX, innerY, innerW, innerH);
-    graphics.fillStyle(0x2fb4ff, 0.13);
-    graphics.fillCircle(player.x, player.y, this.model.minimap.visionRadius * visionScale);
-    graphics.fillStyle(0xf7d95b, 0.08);
-    graphics.fillCircle(base.x, base.y, this.model.minimap.visionRadius * 0.55 * visionScale);
-
     for (const relic of this.model.minimap.relics) {
       const dot = toMap(relic);
       const color = relic.owner === 'player' ? 0x2fb4ff : relic.owner === 'enemy' ? 0xff6b4a : 0xd8e2f8;
-      graphics.lineStyle(1, color, relic.visible ? 0.9 : 0.38);
+      graphics.lineStyle(1, color, 0.9);
       graphics.strokeCircle(dot.x, dot.y, 4);
-      if (!relic.visible) {
-        graphics.fillStyle(0x9fb2d8, 0.16);
-        graphics.fillCircle(dot.x, dot.y, 2);
-      }
       if (relic.owner === 'player') {
         graphics.fillStyle(0x2fb4ff, 0.09);
-        graphics.fillCircle(dot.x, dot.y, this.model.minimap.visionRadius * 0.72 * visionScale);
+        graphics.fillCircle(dot.x, dot.y, 7);
       }
     }
 

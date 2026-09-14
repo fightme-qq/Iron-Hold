@@ -55,8 +55,8 @@ export const defenseBalance = {
     range: 520,
   },
   world: {
-    width: 3600,
-    height: 2400,
+    width: 4800,
+    height: 3200,
   },
   stages: {
     breakMs: 1800,

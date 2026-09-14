@@ -29,12 +29,15 @@ type EnemyActor = {
   parts: number;
   mode: EnemyMode;
   targetPointId?: string;
+  flankOffset: number;
   fireTimerMs: number;
 };
 
 type BulletActor = {
   damage: number;
   owner: BulletOwner;
+  previousX: number;
+  previousY: number;
 };
 
 type DropActor = {
@@ -89,7 +92,7 @@ export class GameScene extends Phaser.Scene {
   private relicPoints: RelicPoint[] = [];
   private readonly basePosition = new Phaser.Math.Vector2(
     defenseBalance.world.width / 2,
-    defenseBalance.world.height - 320,
+    defenseBalance.world.height - 520,
   );
   private phase: DefensePhase = 'intermission';
   private activeTab: 'battle' | 'tank' | 'base' | 'map' = 'battle';
@@ -291,10 +294,10 @@ export class GameScene extends Phaser.Scene {
 
   private createRelicPoints(): void {
     const points = [
-      { id: 'north-relay', x: 1800, y: 690 },
-      { id: 'west-relay', x: 1040, y: 1220 },
-      { id: 'east-relay', x: 2560, y: 1220 },
-      { id: 'south-relay', x: 1800, y: 1760 },
+      { id: 'north-relay', x: 2400, y: 820 },
+      { id: 'west-relay', x: 1450, y: 1600 },
+      { id: 'east-relay', x: 3350, y: 1600 },
+      { id: 'south-relay', x: 2400, y: 2300 },
     ];
 
     for (const [index, point] of points.entries()) {
@@ -356,6 +359,11 @@ export class GameScene extends Phaser.Scene {
       { x: 2260, y: 1960, frame: 0, collide: true, scale: 0.72 },
       { x: 1480, y: 1840, frame: 3, collide: true, scale: 0.68 },
       { x: 1960, y: 2060, frame: 6, collide: true, scale: 0.7 },
+      { x: 3560, y: 2290, frame: 4, collide: true, scale: 0.86 },
+      { x: 680, y: 2520, frame: 5, collide: true, scale: 0.96 },
+      { x: 3880, y: 720, frame: 6, collide: true, scale: 0.84 },
+      { x: 2780, y: 2620, frame: 1, collide: true, scale: 0.78 },
+      { x: 1120, y: 690, frame: 8, scale: 0.92 },
     ];
 
     for (const prop of props) {
@@ -395,6 +403,7 @@ export class GameScene extends Phaser.Scene {
     this.physics.add.collider(this.enemies, this.obstacles);
     this.physics.add.collider(this.enemies, this.barrels);
     this.physics.add.collider(this.enemies, this.enemies);
+    this.physics.add.collider(this.player, this.enemies);
 
     this.physics.add.overlap(this.bullets, this.enemies, (bulletObject, enemyObject) => {
       this.hitEnemy(bulletObject as Phaser.Physics.Arcade.Image, enemyObject as Phaser.Physics.Arcade.Image);
@@ -484,7 +493,8 @@ export class GameScene extends Phaser.Scene {
     for (const actor of this.enemyActors.values()) {
       const target = this.getEnemyMoveTarget(actor);
       const angle = Phaser.Math.Angle.Between(actor.body.x, actor.body.y, target.x, target.y);
-      actor.body.setVelocity(Math.cos(angle) * actor.speed, Math.sin(angle) * actor.speed);
+      const avoid = this.getAvoidanceVector(actor.body.x, actor.body.y);
+      actor.body.setVelocity(Math.cos(angle) * actor.speed + avoid.x, Math.sin(angle) * actor.speed + avoid.y);
       actor.body.setRotation(angle + Math.PI / 2);
       this.updateEnemyTurret(actor);
 
@@ -524,6 +534,12 @@ export class GameScene extends Phaser.Scene {
   }
 
   private getEnemyMoveTarget(actor: EnemyActor): Phaser.Math.Vector2 {
+    const playerDistance = Phaser.Math.Distance.Between(actor.body.x, actor.body.y, this.player.x, this.player.y);
+    if (playerDistance < 360 && this.phase === 'wave') {
+      actor.mode = 'duel';
+      return new Phaser.Math.Vector2(this.player.x, this.player.y);
+    }
+
     if (actor.targetPointId) {
       const point = this.relicPoints.find((relic) => relic.id === actor.targetPointId);
       if (point && point.owner !== 'enemy') {
@@ -532,7 +548,27 @@ export class GameScene extends Phaser.Scene {
     }
 
     actor.mode = 'assault';
-    return this.basePosition;
+    const laneY = this.basePosition.y - 520;
+    if (actor.body.y < laneY && Math.abs(actor.body.x - (this.basePosition.x + actor.flankOffset)) > 90) {
+      return new Phaser.Math.Vector2(this.basePosition.x + actor.flankOffset, laneY);
+    }
+    return new Phaser.Math.Vector2(this.basePosition.x + actor.flankOffset * 0.22, this.basePosition.y);
+  }
+
+  private getAvoidanceVector(x: number, y: number): Phaser.Math.Vector2 {
+    const avoid = new Phaser.Math.Vector2(0, 0);
+    const bodies = [...this.obstacles.getChildren(), ...this.barrels.getChildren()] as Phaser.Physics.Arcade.Image[];
+
+    for (const body of bodies) {
+      const distance = Phaser.Math.Distance.Between(x, y, body.x, body.y);
+      if (distance > 0 && distance < 115) {
+        const push = (115 - distance) / 115;
+        avoid.x += ((x - body.x) / distance) * push * 105;
+        avoid.y += ((y - body.y) / distance) * push * 105;
+      }
+    }
+
+    return avoid;
   }
 
   private getEnemyFireTarget(actor: EnemyActor): Phaser.Math.Vector2 | undefined {
@@ -558,6 +594,10 @@ export class GameScene extends Phaser.Scene {
 
   private updateBullets(): void {
     for (const bullet of this.bulletActors.keys()) {
+      if (this.tryHitPlayerWithBullet(bullet)) {
+        continue;
+      }
+
       if (this.tryHitRelicBunker(bullet)) {
         continue;
       }
@@ -569,8 +609,33 @@ export class GameScene extends Phaser.Scene {
         bullet.y > defenseBalance.world.height + 40
       ) {
         this.destroyBullet(bullet);
+      } else {
+        const actor = this.bulletActors.get(bullet);
+        if (actor) {
+          actor.previousX = bullet.x;
+          actor.previousY = bullet.y;
+        }
       }
     }
+  }
+
+  private tryHitPlayerWithBullet(bullet: Phaser.Physics.Arcade.Image): boolean {
+    const bulletActor = this.bulletActors.get(bullet);
+    if (!bulletActor || bulletActor.owner !== 'enemy' || this.phase === 'lost') {
+      return false;
+    }
+
+    const hitDistance = Phaser.Geom.Intersects.GetLineToCircle(
+      new Phaser.Geom.Line(bulletActor.previousX, bulletActor.previousY, bullet.x, bullet.y),
+      new Phaser.Geom.Circle(this.player.x, this.player.y, 36),
+    );
+
+    if (hitDistance.length > 0 || Phaser.Math.Distance.Between(bullet.x, bullet.y, this.player.x, this.player.y) <= 36) {
+      this.hitPlayer(bullet);
+      return true;
+    }
+
+    return false;
   }
 
   private tryHitRelicBunker(bullet: Phaser.Physics.Arcade.Image): boolean {
@@ -893,9 +958,10 @@ export class GameScene extends Phaser.Scene {
       hp: isBruiser ? 4 : 2,
       speed: isBruiser ? 58 : 84,
       parts: isBruiser ? 4 : 2,
-      mode: Phaser.Math.FloatBetween(0, 1) < 0.45 ? 'capture' : 'assault',
+      mode: Phaser.Math.FloatBetween(0, 1) < (isBruiser ? 0.38 : 0.72) ? 'capture' : 'assault',
       targetPointId: undefined,
       fireTimerMs: Phaser.Math.Between(350, 1000),
+      flankOffset: Phaser.Math.RND.pick([-620, -360, -180, 180, 360, 620]),
     });
     const actor = this.enemyActors.get(enemy);
     if (actor && actor.mode === 'capture') {
@@ -922,9 +988,9 @@ export class GameScene extends Phaser.Scene {
     bullet.setDepth(900);
     const speed = owner === 'enemy' ? defenseBalance.enemy.bulletSpeed : defenseBalance.player.bulletSpeed;
     bullet.setVelocity(Math.cos(angle) * speed, Math.sin(angle) * speed);
-    bullet.body?.setSize(12, 20);
+    bullet.body?.setSize(owner === 'enemy' ? 20 : 14, owner === 'enemy' ? 28 : 22);
     bullet.body?.setAllowGravity(false);
-    this.bulletActors.set(bullet, { damage, owner });
+    this.bulletActors.set(bullet, { damage, owner, previousX: bullet.x, previousY: bullet.y });
   }
 
   private hitEnemy(bullet: Phaser.Physics.Arcade.Image, enemy: Phaser.Physics.Arcade.Image): void {
@@ -1250,17 +1316,15 @@ export class GameScene extends Phaser.Scene {
         },
         base: { x: this.basePosition.x, y: this.basePosition.y },
         enemyBase: { x: this.enemyBase.x, y: this.enemyBase.y },
-        enemies: Array.from(this.enemyActors.values())
-          .filter((enemy) => this.isVisibleToPlayer(enemy.body.x, enemy.body.y, visionRadius))
-          .map((enemy) => ({
-            x: enemy.body.x,
-            y: enemy.body.y,
-          })),
+        enemies: Array.from(this.enemyActors.values()).map((enemy) => ({
+          x: enemy.body.x,
+          y: enemy.body.y,
+        })),
         relics: this.relicPoints.map((point) => ({
           x: point.x,
           y: point.y,
           owner: point.owner,
-          visible: this.isVisibleToPlayer(point.x, point.y, visionRadius),
+          visible: true,
         })),
         camera: {
           x: this.cameras.main.scrollX,
