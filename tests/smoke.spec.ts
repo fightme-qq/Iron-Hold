@@ -12,6 +12,18 @@ test('game canvas renders', async ({ page }) => {
   expect(size.height).toBeGreaterThan(0);
   await expect.poll(() => page.evaluate(() => Boolean(window.__phaserGame)), { timeout: 15_000 }).toBe(true);
   await expect
+    .poll(() => page.evaluate(() => window.__phaserGame?.scene.isActive('MenuScene') ?? false), {
+      timeout: 15_000,
+    })
+    .toBe(true);
+
+  const box = await canvas.boundingBox();
+  expect(box).not.toBeNull();
+  if (box) {
+    await page.mouse.click(box.x + box.width * 0.828, box.y + box.height * 0.883);
+  }
+
+  await expect
     .poll(() => page.evaluate(() => window.__phaserGame?.scene.isActive('GameScene') ?? false), {
       timeout: 15_000,
     })

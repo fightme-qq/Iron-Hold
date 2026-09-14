@@ -33,9 +33,9 @@ export class PreloadScene extends Phaser.Scene {
 
   create(): void {
     this.progressBar.width = 420;
-    startSceneWithFade(this, SceneKeys.Game, {
+    startSceneWithFade(this, SceneKeys.Menu, {
       durationMs: 220,
-      loadingText: 'Starting',
+      loadingText: 'Opening sector map',
     });
   }
 }

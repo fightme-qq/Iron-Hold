@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { BootScene } from '../scenes/BootScene';
 import { PreloadScene } from '../scenes/PreloadScene';
+import { MenuScene } from '../scenes/MenuScene';
 import { TemplateGuideScene } from '../scenes/TemplateGuideScene';
 import { GameScene } from '../scenes/GameScene';
 import { UIScene } from '../scenes/UIScene';
@@ -26,5 +27,5 @@ export const gameConfig: Phaser.Types.Core.GameConfig = {
     default: 'arcade',
     arcade: { debug: false },
   },
-  scene: [BootScene, PreloadScene, TemplateGuideScene, GameScene, UIScene],
+  scene: [BootScene, PreloadScene, MenuScene, TemplateGuideScene, GameScene, UIScene],
 };

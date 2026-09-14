@@ -1,6 +1,7 @@
 export const SceneKeys = {
   Boot: 'BootScene',
   Preload: 'PreloadScene',
+  Menu: 'MenuScene',
   TemplateGuide: 'TemplateGuideScene',
   Game: 'GameScene',
   UI: 'UIScene',

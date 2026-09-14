@@ -120,6 +120,7 @@ export class GameScene extends Phaser.Scene {
   private turretTimerMs = 0;
   private elapsedMs = 0;
   private status = 'Wave 1 is ready. Protect the repair base.';
+  private sectorTitle = 'Iron Hold';
   private readonly hudPanelTop = 552;
   private playerForwardSpeed = 0;
   private playerHullRotation = -Math.PI / 2;
@@ -128,7 +129,8 @@ export class GameScene extends Phaser.Scene {
     super(SceneKeys.Game);
   }
 
-  create(): void {
+  create(data: { sectorTitle?: string } = {}): void {
+    this.sectorTitle = data.sectorTitle ?? 'Iron Hold';
     this.resetRuntimeState();
     fadeInScene(this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.shutdown());
@@ -177,7 +179,7 @@ export class GameScene extends Phaser.Scene {
     this.elapsedMs = 0;
     this.playerForwardSpeed = 0;
     this.playerHullRotation = -Math.PI / 2;
-    this.status = 'Wave 1 is ready. Protect the repair base.';
+    this.status = `${this.sectorTitle}: protect the repair base.`;
   }
 
   update(time: number, delta: number): void {
