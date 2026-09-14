@@ -27,6 +27,8 @@ type DefenseHudModel = {
   maxWaves: number;
   baseHp: number;
   maxBaseHp: number;
+  playerHp: number;
+  maxPlayerHp: number;
   parts: number;
   status: string;
   stage: {
@@ -38,10 +40,13 @@ type DefenseHudModel = {
     worldWidth: number;
     worldHeight: number;
     player: { x: number; y: number };
-      base: { x: number; y: number };
-      enemies: Array<{ x: number; y: number }>;
-      camera: { x: number; y: number; width: number; height: number };
-    };
+    base: { x: number; y: number };
+    enemyBase: { x: number; y: number };
+    enemies: Array<{ x: number; y: number }>;
+    relics: Array<{ x: number; y: number; owner: 'neutral' | 'player' | 'enemy'; visible: boolean }>;
+    camera: { x: number; y: number; width: number; height: number };
+    visionRadius: number;
+  };
   upgrades: UpgradeUiModel[];
   nextWave:
     | {
@@ -79,6 +84,7 @@ const upgradeIconFrames: Record<string, number> = {
   'tank-damage': iconFrames.damage,
   'tank-reload': iconFrames.reload,
   'tank-speed': iconFrames.speed,
+  'tank-vision': iconFrames.wave,
   'base-max-hp': iconFrames.baseHp,
   'base-repair': iconFrames.repair,
   'base-turret': iconFrames.turret,
@@ -102,6 +108,7 @@ export class UIScene extends Phaser.Scene {
   private statusText!: Phaser.GameObjects.Text;
   private waveValue!: Phaser.GameObjects.Text;
   private hpValue!: Phaser.GameObjects.Text;
+  private tankHpValue!: Phaser.GameObjects.Text;
   private partsValue!: Phaser.GameObjects.Text;
   private stageValue!: Phaser.GameObjects.Text;
 
@@ -136,15 +143,16 @@ export class UIScene extends Phaser.Scene {
     });
     this.hudLayer.add(titleText);
 
-    this.waveValue = this.createStatChip(226, 12, 166, iconFrames.wave, 'Wave', '#d9f2ff');
-    this.hpValue = this.createStatChip(408, 12, 192, iconFrames.baseHp, 'Base', '#f7d95b');
-    this.partsValue = this.createStatChip(616, 12, 164, iconFrames.parts, 'Parts', '#b9f27c');
-    this.stageValue = this.createStatChip(796, 12, 190, iconFrames.battle, 'Stage', '#f7d95b');
-    this.statusText = this.add.text(1010, 15, '', {
+    this.waveValue = this.createStatChip(214, 12, 150, iconFrames.wave, 'Wave', '#d9f2ff');
+    this.hpValue = this.createStatChip(378, 12, 172, iconFrames.baseHp, 'Base', '#f7d95b');
+    this.tankHpValue = this.createStatChip(564, 12, 148, iconFrames.armor, 'Tank', '#ffb49f');
+    this.partsValue = this.createStatChip(726, 12, 144, iconFrames.parts, 'Parts', '#b9f27c');
+    this.stageValue = this.createStatChip(884, 12, 170, iconFrames.battle, 'Stage', '#f7d95b');
+    this.statusText = this.add.text(1072, 15, '', {
       fontFamily: 'Trebuchet MS, Arial, sans-serif',
       fontSize: '14px',
       color: '#d8e2f8',
-      wordWrap: { width: width - 1034 },
+      wordWrap: { width: Math.max(180, width - 1096) },
     });
     this.hudLayer.add(this.statusText);
   }
@@ -246,6 +254,7 @@ export class UIScene extends Phaser.Scene {
     if (!this.model) return;
     this.waveValue.setText(`Wave ${this.model.wave}/${this.model.maxWaves}`);
     this.hpValue.setText(`Base ${this.model.baseHp}/${this.model.maxBaseHp}`);
+    this.tankHpValue.setText(`Tank ${this.model.playerHp}/${this.model.maxPlayerHp}`);
     this.partsValue.setText(`Parts ${this.model.parts}`);
     this.stageValue.setText(`Stage ${this.model.stage.current}/${this.model.stage.total}`);
     this.statusText.setText(this.model.status);
@@ -291,14 +300,14 @@ export class UIScene extends Phaser.Scene {
       this.add.text(
         86,
         y + 30,
-        'W/S drive, A/D turn. Aim and fire with pointer/touch, or hold Space.',
+        'W/S drive, A/D turn. Capture relics, break barrels, collect repairs.',
         this.textStyle('#d8e2f8', 14, 560),
       ),
     );
     this.panelLayer.add(this.roundedRect(764, y, 260, 54, 0x132022, 0.88, 8, 0x2c4240, 0.78));
     this.panelLayer.add(this.add.image(794, y + 27, AssetKeys.UIIcons, iconFrames.baseHp).setDisplaySize(28, 28));
     this.panelLayer.add(this.add.text(826, y + 10, 'Win: survive wave 5', this.textStyle('#b9f27c', 14, 170, true)));
-    this.panelLayer.add(this.add.text(826, y + 30, 'Lose: base HP reaches 0', this.textStyle('#ffb49f', 14, 180, true)));
+    this.panelLayer.add(this.add.text(826, y + 30, 'Lose: base or tank falls', this.textStyle('#ffb49f', 14, 180, true)));
   }
 
   private renderMapPanel(): void {
@@ -313,7 +322,8 @@ export class UIScene extends Phaser.Scene {
     this.panelLayer.add(this.add.text(96, y + 54, text, this.textStyle('#d8e2f8', 20, 440)));
     const stages = next?.stages.map((stage, index) => `${index + 1}. ${stage.title}: ${stage.scouts}/${stage.bruisers}`).join('\n') ?? '';
     this.panelLayer.add(this.add.text(600, y + 24, stages, this.textStyle('#d8e2f8', 15, 300)));
-    this.panelLayer.add(this.add.text(930, y + 34, 'Scouts / bruisers by stage.', this.textStyle('#9fb2d8', 15, 240)));
+    this.panelLayer.add(this.add.text(930, y + 24, 'Relics reveal fog and shoot for their owner.', this.textStyle('#9fb2d8', 15, 250)));
+    this.panelLayer.add(this.add.text(930, y + 62, 'Optics expands minimap intel.', this.textStyle('#b9f27c', 15, 250, true)));
   }
 
   private renderMinimap(): void {
@@ -342,6 +352,7 @@ export class UIScene extends Phaser.Scene {
     });
 
     const base = toMap(this.model.minimap.base);
+    const enemyBase = toMap(this.model.minimap.enemyBase);
     const player = toMap(this.model.minimap.player);
     const camera = this.model.minimap.camera;
     const viewX = innerX + (camera.x / this.model.minimap.worldWidth) * innerW;
@@ -350,8 +361,31 @@ export class UIScene extends Phaser.Scene {
     const viewH = (camera.height / this.model.minimap.worldHeight) * innerH;
     graphics.lineStyle(1, 0xd8e2f8, 0.65);
     graphics.strokeRect(viewX, viewY, viewW, viewH);
+
+    const visionScale = Math.min(innerW / this.model.minimap.worldWidth, innerH / this.model.minimap.worldHeight);
+    graphics.fillStyle(0x081014, 0.48);
+    graphics.fillRect(innerX, innerY, innerW, innerH);
+    graphics.fillStyle(0x2fb4ff, 0.13);
+    graphics.fillCircle(player.x, player.y, this.model.minimap.visionRadius * visionScale);
+    graphics.fillStyle(0xf7d95b, 0.08);
+    graphics.fillCircle(base.x, base.y, this.model.minimap.visionRadius * 0.55 * visionScale);
+
+    for (const relic of this.model.minimap.relics) {
+      if (!relic.visible) continue;
+      const dot = toMap(relic);
+      const color = relic.owner === 'player' ? 0x2fb4ff : relic.owner === 'enemy' ? 0xff6b4a : 0xd8e2f8;
+      graphics.lineStyle(1, color, 0.9);
+      graphics.strokeCircle(dot.x, dot.y, 4);
+      if (relic.owner === 'player') {
+        graphics.fillStyle(0x2fb4ff, 0.09);
+        graphics.fillCircle(dot.x, dot.y, this.model.minimap.visionRadius * 0.72 * visionScale);
+      }
+    }
+
     graphics.fillStyle(0xf7d95b, 1);
     graphics.fillCircle(base.x, base.y, 4);
+    graphics.fillStyle(0xff6b4a, 1);
+    graphics.fillRect(enemyBase.x - 3, enemyBase.y - 3, 6, 6);
     graphics.fillStyle(0x2fb4ff, 1);
     graphics.fillTriangle(player.x, player.y - 5, player.x - 4, player.y + 4, player.x + 4, player.y + 4);
     graphics.fillStyle(0xff6b4a, 0.95);

@@ -16,6 +16,10 @@ import { fadeInScene } from './sceneTransitions';
 
 type DefensePhase = 'intermission' | 'wave' | 'stageBreak' | 'won' | 'lost';
 type EnemyKind = 'scout' | 'bruiser';
+type Team = 'neutral' | 'player' | 'enemy';
+type DropKind = 'parts' | 'repair';
+type BulletOwner = 'player' | 'enemy' | 'relic';
+type EnemyMode = 'capture' | 'assault' | 'duel';
 
 type EnemyActor = {
   body: Phaser.Physics.Arcade.Image;
@@ -23,15 +27,36 @@ type EnemyActor = {
   hp: number;
   speed: number;
   parts: number;
+  mode: EnemyMode;
+  targetPointId?: string;
+  fireTimerMs: number;
 };
 
 type BulletActor = {
   damage: number;
+  owner: BulletOwner;
 };
 
 type DropActor = {
+  kind: DropKind;
   value: number;
   expiresAt: number;
+};
+
+type RelicPoint = {
+  id: string;
+  x: number;
+  y: number;
+  owner: Team;
+  progress: number;
+  sprite: Phaser.GameObjects.Image;
+  ring: Phaser.GameObjects.Arc;
+  fireTimerMs: number;
+};
+
+type BarrelActor = {
+  body: Phaser.Physics.Arcade.Image;
+  hp: number;
 };
 
 export class GameScene extends Phaser.Scene {
@@ -40,14 +65,19 @@ export class GameScene extends Phaser.Scene {
   private playerBarrel!: Phaser.GameObjects.Image;
   private baseCore!: Phaser.GameObjects.Rectangle;
   private baseRing!: Phaser.GameObjects.Arc;
+  private enemyBase!: Phaser.GameObjects.Image;
   private turretBase?: Phaser.GameObjects.Image;
   private turretBarrel?: Phaser.GameObjects.Image;
   private enemies!: Phaser.Physics.Arcade.Group;
   private bullets!: Phaser.Physics.Arcade.Group;
   private drops!: Phaser.Physics.Arcade.Group;
+  private obstacles!: Phaser.Physics.Arcade.StaticGroup;
+  private barrels!: Phaser.Physics.Arcade.StaticGroup;
   private enemyActors = new Map<Phaser.Physics.Arcade.Image, EnemyActor>();
   private bulletActors = new Map<Phaser.Physics.Arcade.Image, BulletActor>();
   private dropActors = new Map<Phaser.Physics.Arcade.Image, DropActor>();
+  private barrelActors = new Map<Phaser.Physics.Arcade.Image, BarrelActor>();
+  private relicPoints: RelicPoint[] = [];
   private readonly basePosition = new Phaser.Math.Vector2(
     defenseBalance.world.width / 2,
     defenseBalance.world.height / 2,
@@ -57,11 +87,13 @@ export class GameScene extends Phaser.Scene {
   private waveIndex = 0;
   private baseHp: number = defenseBalance.initialBaseHp;
   private maxBaseHp: number = defenseBalance.initialBaseHp;
+  private playerHp: number = defenseBalance.player.maxHp;
   private parts: number = defenseBalance.initialParts;
   private upgradeLevels: Record<UpgradeId, number> = {
     'tank-damage': 0,
     'tank-reload': 0,
     'tank-speed': 0,
+    'tank-vision': 0,
     'base-max-hp': 0,
     'base-repair': 0,
     'base-turret': 0,
@@ -103,16 +135,20 @@ export class GameScene extends Phaser.Scene {
     this.enemyActors = new Map<Phaser.Physics.Arcade.Image, EnemyActor>();
     this.bulletActors = new Map<Phaser.Physics.Arcade.Image, BulletActor>();
     this.dropActors = new Map<Phaser.Physics.Arcade.Image, DropActor>();
+    this.barrelActors = new Map<Phaser.Physics.Arcade.Image, BarrelActor>();
+    this.relicPoints = [];
     this.phase = 'intermission';
     this.activeTab = 'battle';
     this.waveIndex = 0;
     this.baseHp = defenseBalance.initialBaseHp;
     this.maxBaseHp = defenseBalance.initialBaseHp;
+    this.playerHp = defenseBalance.player.maxHp;
     this.parts = defenseBalance.initialParts;
     this.upgradeLevels = {
       'tank-damage': 0,
       'tank-reload': 0,
       'tank-speed': 0,
+      'tank-vision': 0,
       'base-max-hp': 0,
       'base-repair': 0,
       'base-turret': 0,
@@ -144,6 +180,7 @@ export class GameScene extends Phaser.Scene {
     } else if (this.phase === 'stageBreak') {
       this.updateStageBreak(delta);
     }
+    this.updateRelicPoints(delta);
 
     if (this.hudPublishTimerMs >= 120) {
       this.hudPublishTimerMs = 0;
@@ -151,12 +188,13 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  getDebugSnapshot(): { elapsedMs: number; phase: string; wave: number; baseHp: number; parts: number } {
+  getDebugSnapshot(): { elapsedMs: number; phase: string; wave: number; baseHp: number; playerHp: number; parts: number } {
     return {
       elapsedMs: this.elapsedMs,
       phase: this.phase === 'lost' ? 'lost' : this.phase === 'won' ? 'won' : 'playing',
       wave: this.waveIndex + 1,
       baseHp: this.baseHp,
+      playerHp: this.playerHp,
       parts: this.parts,
     };
   }
@@ -182,27 +220,40 @@ export class GameScene extends Phaser.Scene {
     graphics.lineBetween(this.basePosition.x - 700, this.basePosition.y, this.basePosition.x + 700, this.basePosition.y);
     graphics.lineBetween(this.basePosition.x, this.basePosition.y - 500, this.basePosition.x, this.basePosition.y + 500);
 
+    this.obstacles = this.physics.add.staticGroup();
+    this.barrels = this.physics.add.staticGroup();
+
     const decor = [
       { x: 190, y: 160, key: AssetKeys.TreeSmall },
-      { x: 1940, y: 210, key: AssetKeys.TreeSmall },
+      { x: 3200, y: 260, key: AssetKeys.TreeSmall },
       { x: 260, y: 1190, key: AssetKeys.SandbagBeige },
-      { x: 1880, y: 1210, key: AssetKeys.BarrelRed },
+      { x: 3150, y: 1980, key: AssetKeys.BarrelRed, barrel: true },
       { x: 620, y: 210, key: AssetKeys.SandbagBeige },
-      { x: 1500, y: 190, key: AssetKeys.BarrelRed },
+      { x: 2500, y: 260, key: AssetKeys.BarrelRed, barrel: true },
       { x: 430, y: 760, key: AssetKeys.TreeSmall },
-      { x: 1760, y: 770, key: AssetKeys.TreeSmall },
-      { x: 1040, y: 290, key: AssetKeys.BarrelRed },
-      { x: 1180, y: 1240, key: AssetKeys.SandbagBeige },
+      { x: 2880, y: 980, key: AssetKeys.TreeSmall },
+      { x: 1450, y: 480, key: AssetKeys.BarrelRed, barrel: true },
+      { x: 1960, y: 1740, key: AssetKeys.SandbagBeige },
+      { x: 1100, y: 1870, key: AssetKeys.BarrelRed, barrel: true },
+      { x: 760, y: 1420, key: AssetKeys.SandbagBeige },
+      { x: 1700, y: 1010, key: AssetKeys.TreeSmall },
     ];
 
     for (const item of decor) {
-      this.add.image(item.x, item.y, item.key).setScale(1.2).setAlpha(0.92);
+      const obstacle = (item.barrel ? this.barrels : this.obstacles).create(item.x, item.y, item.key) as Phaser.Physics.Arcade.Image;
+      obstacle.setScale(1.2).setAlpha(0.92).refreshBody();
+      obstacle.body?.setSize(42, 42);
+      if (item.barrel) {
+        this.barrelActors.set(obstacle, { body: obstacle, hp: 2 });
+      }
     }
 
+    this.createRelicPoints();
     this.baseRing = this.add.circle(this.basePosition.x, this.basePosition.y, 62, 0x10293b, 0.9);
     this.baseRing.setStrokeStyle(5, 0xf4d35e, 0.92);
-    this.baseCore = this.add.rectangle(this.basePosition.x, this.basePosition.y, 74, 74, 0x2d5f73, 1);
-    this.baseCore.setStrokeStyle(4, 0xd9f2ff, 1);
+    this.add.image(this.basePosition.x, this.basePosition.y, AssetKeys.DefenseObjects, 0).setDisplaySize(104, 104);
+    this.baseCore = this.add.rectangle(this.basePosition.x, this.basePosition.y, 74, 74, 0x2d5f73, 0.12);
+    this.baseCore.setStrokeStyle(2, 0xd9f2ff, 0.5);
     this.add
       .text(this.basePosition.x, this.basePosition.y + 2, 'BASE', {
         fontFamily: 'Trebuchet MS, Arial, sans-serif',
@@ -211,6 +262,31 @@ export class GameScene extends Phaser.Scene {
         fontStyle: 'bold',
       })
       .setOrigin(0.5);
+    this.enemyBase = this.add
+      .image(defenseBalance.world.width - 260, 230, AssetKeys.DefenseObjects, 1)
+      .setDisplaySize(124, 124);
+    this.add.text(this.enemyBase.x, this.enemyBase.y + 74, 'ENEMY BASE', {
+      fontFamily: 'Trebuchet MS, Arial, sans-serif',
+      fontSize: '14px',
+      color: '#ffd2c8',
+      fontStyle: 'bold',
+    }).setOrigin(0.5);
+  }
+
+  private createRelicPoints(): void {
+    const points = [
+      { id: 'west-relay', x: 760, y: 560 },
+      { id: 'south-relay', x: 1460, y: 1780 },
+      { id: 'east-relay', x: 2680, y: 980 },
+      { id: 'north-relay', x: 1800, y: 520 },
+    ];
+
+    for (const point of points) {
+      const ring = this.add.circle(point.x, point.y, defenseBalance.relic.captureRadius, 0x9aa4a8, 0.08);
+      ring.setStrokeStyle(3, 0xd8e2f8, 0.42);
+      const sprite = this.add.image(point.x, point.y, AssetKeys.DefenseObjects, 2).setDisplaySize(82, 82);
+      this.relicPoints.push({ ...point, owner: 'neutral', progress: 0, sprite, ring, fireTimerMs: 0 });
+    }
   }
 
   private createActors(): void {
@@ -232,8 +308,26 @@ export class GameScene extends Phaser.Scene {
   }
 
   private createPhysics(): void {
+    this.physics.add.collider(this.player, this.obstacles);
+    this.physics.add.collider(this.player, this.barrels);
+    this.physics.add.collider(this.enemies, this.obstacles);
+    this.physics.add.collider(this.enemies, this.barrels);
+    this.physics.add.collider(this.enemies, this.enemies);
+
     this.physics.add.overlap(this.bullets, this.enemies, (bulletObject, enemyObject) => {
       this.hitEnemy(bulletObject as Phaser.Physics.Arcade.Image, enemyObject as Phaser.Physics.Arcade.Image);
+    });
+
+    this.physics.add.overlap(this.bullets, this.player, (bulletObject) => {
+      this.hitPlayer(bulletObject as Phaser.Physics.Arcade.Image);
+    });
+
+    this.physics.add.overlap(this.bullets, this.barrels, (bulletObject, barrelObject) => {
+      this.hitBarrel(bulletObject as Phaser.Physics.Arcade.Image, barrelObject as Phaser.Physics.Arcade.Image);
+    });
+
+    this.physics.add.collider(this.bullets, this.obstacles, (bulletObject) => {
+      this.destroyBullet(bulletObject as Phaser.Physics.Arcade.Image);
     });
 
     this.physics.add.overlap(this.player, this.drops, (_playerObject, dropObject) => {
@@ -275,7 +369,7 @@ export class GameScene extends Phaser.Scene {
     const firingInBattlefield = this.playerInput.isFireKeyDown() || this.playerInput.isPointerInScreenArea(this.hudPanelTop);
     if (this.phase === 'wave' && firingInBattlefield && this.fireTimerMs <= 0) {
       this.fireTimerMs = this.getFireCooldown();
-      this.fireBullet(this.player.x, this.player.y, angle, this.getPlayerDamage());
+      this.fireBullet(this.player.x, this.player.y, angle, this.getPlayerDamage(), 'player');
     }
   }
 
@@ -296,13 +390,13 @@ export class GameScene extends Phaser.Scene {
 
   private updateEnemies(): void {
     for (const actor of this.enemyActors.values()) {
-      const angle = Phaser.Math.Angle.Between(actor.body.x, actor.body.y, this.basePosition.x, this.basePosition.y);
+      const target = this.getEnemyMoveTarget(actor);
+      const angle = Phaser.Math.Angle.Between(actor.body.x, actor.body.y, target.x, target.y);
       actor.body.setVelocity(Math.cos(angle) * actor.speed, Math.sin(angle) * actor.speed);
       actor.body.setRotation(angle + Math.PI / 2);
-      actor.barrel.setPosition(actor.body.x, actor.body.y);
-      actor.barrel.setRotation(angle + Math.PI / 2);
+      this.updateEnemyTurret(actor);
 
-      if (Phaser.Math.Distance.Between(actor.body.x, actor.body.y, this.basePosition.x, this.basePosition.y) < 58) {
+      if (actor.mode === 'assault' && Phaser.Math.Distance.Between(actor.body.x, actor.body.y, this.basePosition.x, this.basePosition.y) < 58) {
         this.damageBase(actor);
       }
 
@@ -314,6 +408,58 @@ export class GameScene extends Phaser.Scene {
     this.baseCore.setRotation(Math.sin(this.elapsedMs / 480) * 0.015);
     this.player.setDepth(this.player.y);
     this.playerBarrel.setDepth(this.player.y + 1);
+  }
+
+  private updateEnemyTurret(actor: EnemyActor): void {
+    actor.fireTimerMs -= this.game.loop.delta;
+    actor.barrel.setPosition(actor.body.x, actor.body.y);
+    const target = this.getEnemyFireTarget(actor);
+
+    if (!target) {
+      actor.barrel.setRotation(Phaser.Math.Angle.RotateTo(actor.barrel.rotation, actor.body.rotation, 0.05));
+      return;
+    }
+
+    const angle = Phaser.Math.Angle.Between(actor.body.x, actor.body.y, target.x, target.y);
+    actor.barrel.setRotation(Phaser.Math.Angle.RotateTo(actor.barrel.rotation, angle + Math.PI / 2, 0.08));
+
+    if (actor.fireTimerMs <= 0) {
+      actor.fireTimerMs = defenseBalance.enemy.fireCooldownMs + Phaser.Math.Between(-180, 180);
+      this.fireBullet(actor.body.x, actor.body.y, angle, 1, 'enemy');
+    }
+  }
+
+  private getEnemyMoveTarget(actor: EnemyActor): Phaser.Math.Vector2 {
+    if (actor.targetPointId) {
+      const point = this.relicPoints.find((relic) => relic.id === actor.targetPointId);
+      if (point && point.owner !== 'enemy') {
+        return new Phaser.Math.Vector2(point.x, point.y);
+      }
+    }
+
+    actor.mode = 'assault';
+    return this.basePosition;
+  }
+
+  private getEnemyFireTarget(actor: EnemyActor): Phaser.Math.Vector2 | undefined {
+    const playerDistance = Phaser.Math.Distance.Between(actor.body.x, actor.body.y, this.player.x, this.player.y);
+    if (playerDistance <= defenseBalance.enemy.range) {
+      return new Phaser.Math.Vector2(this.player.x, this.player.y);
+    }
+
+    const playerRelic = this.relicPoints
+      .filter((point) => point.owner === 'player')
+      .sort(
+        (a, b) =>
+          Phaser.Math.Distance.Between(actor.body.x, actor.body.y, a.x, a.y) -
+          Phaser.Math.Distance.Between(actor.body.x, actor.body.y, b.x, b.y),
+      )[0];
+
+    if (playerRelic && Phaser.Math.Distance.Between(actor.body.x, actor.body.y, playerRelic.x, playerRelic.y) <= defenseBalance.enemy.range) {
+      return new Phaser.Math.Vector2(playerRelic.x, playerRelic.y);
+    }
+
+    return undefined;
   }
 
   private updateBullets(): void {
@@ -335,6 +481,68 @@ export class GameScene extends Phaser.Scene {
       if (time > actor.expiresAt) {
         this.destroyDrop(drop);
       }
+    }
+  }
+
+  private updateRelicPoints(delta: number): void {
+    for (const point of this.relicPoints) {
+      const playerInside =
+        Phaser.Math.Distance.Between(this.player.x, this.player.y, point.x, point.y) <= defenseBalance.relic.captureRadius;
+      const enemiesInside = Array.from(this.enemyActors.values()).filter(
+        (enemy) => Phaser.Math.Distance.Between(enemy.body.x, enemy.body.y, point.x, point.y) <= defenseBalance.relic.captureRadius,
+      ).length;
+      const direction = playerInside && enemiesInside === 0 ? 1 : enemiesInside > 0 && !playerInside ? -1 : 0;
+
+      if (direction !== 0) {
+        point.progress = Phaser.Math.Clamp(point.progress + (direction * delta) / (defenseBalance.relic.captureSeconds * 1000), -1, 1);
+      } else {
+        point.progress *= 0.985;
+      }
+
+      if (point.progress >= 1 && point.owner !== 'player') {
+        point.owner = 'player';
+        point.progress = 1;
+        point.sprite.setFrame(3);
+        point.ring.setStrokeStyle(4, 0x2fb4ff, 0.9);
+        this.status = `${point.id} captured. It will fire on enemies nearby.`;
+      } else if (point.progress <= -1 && point.owner !== 'enemy') {
+        point.owner = 'enemy';
+        point.progress = -1;
+        point.sprite.setFrame(4);
+        point.ring.setStrokeStyle(4, 0xff6b4a, 0.9);
+        this.status = `${point.id} fell to enemy control.`;
+      } else if (Math.abs(point.progress) < 0.08 && point.owner !== 'neutral') {
+        point.owner = 'neutral';
+        point.sprite.setFrame(2);
+        point.ring.setStrokeStyle(3, 0xd8e2f8, 0.42);
+      }
+
+      point.ring.setAlpha(0.16 + Math.abs(point.progress) * 0.16);
+      this.updateRelicFire(point, delta);
+    }
+  }
+
+  private updateRelicFire(point: RelicPoint, delta: number): void {
+    if (point.owner === 'neutral') {
+      return;
+    }
+
+    point.fireTimerMs -= delta;
+    if (point.fireTimerMs > 0) {
+      return;
+    }
+
+    if (point.owner === 'player') {
+      const target = this.findNearestEnemy(point.x, point.y, defenseBalance.relic.attackRadius);
+      if (target) {
+        const angle = Phaser.Math.Angle.Between(point.x, point.y, target.body.x, target.body.y);
+        point.fireTimerMs = defenseBalance.relic.fireCooldownMs;
+        this.fireBullet(point.x, point.y, angle, 1, 'relic');
+      }
+    } else if (Phaser.Math.Distance.Between(point.x, point.y, this.player.x, this.player.y) <= defenseBalance.relic.attackRadius) {
+      const angle = Phaser.Math.Angle.Between(point.x, point.y, this.player.x, this.player.y);
+      point.fireTimerMs = defenseBalance.relic.fireCooldownMs;
+      this.fireBullet(point.x, point.y, angle, 1, 'enemy');
     }
   }
 
@@ -381,7 +589,7 @@ export class GameScene extends Phaser.Scene {
 
     if (this.turretTimerMs <= 0) {
       this.turretTimerMs = defenseBalance.turret.cooldownMs;
-      this.fireBullet(this.basePosition.x, this.basePosition.y, angle, defenseBalance.turret.damage);
+      this.fireBullet(this.basePosition.x, this.basePosition.y, angle, defenseBalance.turret.damage, 'relic');
     }
   }
 
@@ -504,10 +712,20 @@ export class GameScene extends Phaser.Scene {
       hp: isBruiser ? 4 : 2,
       speed: isBruiser ? 58 : 84,
       parts: isBruiser ? 4 : 2,
+      mode: Phaser.Math.FloatBetween(0, 1) < 0.45 ? 'capture' : 'assault',
+      targetPointId: undefined,
+      fireTimerMs: Phaser.Math.Between(350, 1000),
     });
+    const actor = this.enemyActors.get(enemy);
+    if (actor && actor.mode === 'capture') {
+      actor.targetPointId = this.pickEnemyCaptureTarget(enemy.x, enemy.y)?.id;
+      if (!actor.targetPointId) {
+        actor.mode = 'assault';
+      }
+    }
   }
 
-  private fireBullet(x: number, y: number, angle: number, damage: number): void {
+  private fireBullet(x: number, y: number, angle: number, damage: number, owner: BulletOwner): void {
     const muzzleDistance = 45;
     const bullet = this.physics.add.image(
       x + Math.cos(angle) * muzzleDistance,
@@ -515,19 +733,23 @@ export class GameScene extends Phaser.Scene {
       AssetKeys.PlayerBullet,
     );
     this.bullets.add(bullet);
-    bullet.setDisplaySize(18, 28);
+    bullet.setDisplaySize(owner === 'enemy' ? 16 : 18, owner === 'enemy' ? 26 : 28);
+    if (owner === 'enemy') {
+      bullet.setTint(0xff6b4a);
+    }
     bullet.setRotation(angle + Math.PI / 2);
     bullet.setDepth(900);
-    bullet.setVelocity(Math.cos(angle) * defenseBalance.player.bulletSpeed, Math.sin(angle) * defenseBalance.player.bulletSpeed);
+    const speed = owner === 'enemy' ? defenseBalance.enemy.bulletSpeed : defenseBalance.player.bulletSpeed;
+    bullet.setVelocity(Math.cos(angle) * speed, Math.sin(angle) * speed);
     bullet.body?.setSize(12, 20);
     bullet.body?.setAllowGravity(false);
-    this.bulletActors.set(bullet, { damage });
+    this.bulletActors.set(bullet, { damage, owner });
   }
 
   private hitEnemy(bullet: Phaser.Physics.Arcade.Image, enemy: Phaser.Physics.Arcade.Image): void {
     const bulletActor = this.bulletActors.get(bullet);
     const enemyActor = this.enemyActors.get(enemy);
-    if (!bulletActor || !enemyActor) {
+    if (!bulletActor || !enemyActor || bulletActor.owner === 'enemy') {
       return;
     }
 
@@ -539,6 +761,46 @@ export class GameScene extends Phaser.Scene {
       this.destroyEnemy(enemyActor, true);
     } else {
       this.tweens.add({ targets: enemy, alpha: { from: 0.55, to: 1 }, duration: 80 });
+    }
+  }
+
+  private hitPlayer(bullet: Phaser.Physics.Arcade.Image): void {
+    const bulletActor = this.bulletActors.get(bullet);
+    if (!bulletActor || bulletActor.owner !== 'enemy' || this.phase === 'lost') {
+      return;
+    }
+
+    this.playerHp = Math.max(0, this.playerHp - bulletActor.damage);
+    this.destroyBullet(bullet);
+    this.flashAt(this.player.x, this.player.y, 0xff6b4a, 32);
+    this.cameras.main.shake(80, 0.004);
+
+    if (this.playerHp <= 0) {
+      this.phase = 'lost';
+      this.status = 'Your tank is knocked out. Five hits is enough to end the run.';
+      this.clearCombatActors();
+      eventBus.emit(GameEvents.RunStateChanged, { phase: 'lost' });
+    } else {
+      this.status = `Tank hit. ${this.playerHp}/${defenseBalance.player.maxHp} armor remains.`;
+    }
+
+    this.publishHud();
+  }
+
+  private hitBarrel(bullet: Phaser.Physics.Arcade.Image, barrel: Phaser.Physics.Arcade.Image): void {
+    const bulletActor = this.bulletActors.get(bullet);
+    const barrelActor = this.barrelActors.get(barrel);
+    if (!bulletActor || !barrelActor) {
+      return;
+    }
+
+    barrelActor.hp -= bulletActor.damage;
+    this.destroyBullet(bullet);
+
+    if (barrelActor.hp <= 0) {
+      this.explodeBarrel(barrelActor);
+    } else {
+      this.flashAt(barrel.x, barrel.y, 0xffffff, 16);
     }
   }
 
@@ -566,15 +828,30 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    this.parts += actor.value;
-    this.flashAt(drop.x, drop.y, 0xf4d35e, 20);
+    if (actor.kind === 'repair') {
+      if (this.playerHp < defenseBalance.player.maxHp) {
+        this.playerHp = Math.min(defenseBalance.player.maxHp, this.playerHp + actor.value);
+        this.status = `Repair kit restored armor: ${this.playerHp}/${defenseBalance.player.maxHp}.`;
+      } else {
+        this.baseHp = Math.min(this.maxBaseHp, this.baseHp + actor.value * 8);
+        this.status = `Repair kit patched the base: ${this.baseHp}/${this.maxBaseHp}.`;
+      }
+      this.flashAt(drop.x, drop.y, 0x58e070, 22);
+    } else {
+      this.parts += actor.value;
+      this.status = `Collected ${actor.value} parts.`;
+      this.flashAt(drop.x, drop.y, 0xf4d35e, 20);
+    }
     this.destroyDrop(drop);
     this.publishHud();
   }
 
   private destroyEnemy(actor: EnemyActor, reward: boolean): void {
     if (reward) {
-      this.spawnDrop(actor.body.x, actor.body.y, actor.parts);
+      this.spawnDrop(actor.body.x, actor.body.y, 'parts', actor.parts);
+      if (Phaser.Math.FloatBetween(0, 1) < 0.12) {
+        this.spawnDrop(actor.body.x + Phaser.Math.Between(-18, 18), actor.body.y + Phaser.Math.Between(-18, 18), 'repair', 1);
+      }
       this.addSmoke(actor.body.x, actor.body.y, true);
     } else {
       this.addSmoke(actor.body.x, actor.body.y, false);
@@ -608,14 +885,51 @@ export class GameScene extends Phaser.Scene {
     this.bulletActors.clear();
   }
 
-  private spawnDrop(x: number, y: number, value: number): void {
-    const drop = this.physics.add.image(x, y, AssetKeys.Dirt);
-    drop.setTint(0xf4d35e);
+  private explodeBarrel(actor: BarrelActor): void {
+    const x = actor.body.x;
+    const y = actor.body.y;
+    this.addSmoke(x, y, true);
+    this.flashAt(x, y, 0xffc857, 56);
+    this.cameras.main.shake(120, 0.005);
+
+    for (const enemy of Array.from(this.enemyActors.values())) {
+      if (Phaser.Math.Distance.Between(x, y, enemy.body.x, enemy.body.y) <= 150) {
+        enemy.hp -= 3;
+        if (enemy.hp <= 0) {
+          this.destroyEnemy(enemy, true);
+        }
+      }
+    }
+
+    if (Phaser.Math.Distance.Between(x, y, this.player.x, this.player.y) <= 120) {
+      this.playerHp = Math.max(0, this.playerHp - 1);
+      if (this.playerHp <= 0) {
+        this.phase = 'lost';
+        this.status = 'Your tank was destroyed by the barrel blast.';
+        this.clearCombatActors();
+        eventBus.emit(GameEvents.RunStateChanged, { phase: 'lost' });
+      }
+    }
+
+    this.spawnDrop(x - 18, y, 'parts', 3);
+    if (Phaser.Math.FloatBetween(0, 1) < 0.35) {
+      this.spawnDrop(x + 18, y, 'repair', 1);
+    }
+
+    this.barrelActors.delete(actor.body);
+    this.barrels.remove(actor.body, true, true);
+    this.publishHud();
+  }
+
+  private spawnDrop(x: number, y: number, kind: DropKind, value: number): void {
+    const frame = kind === 'repair' ? 5 : 6;
+    const drop = this.physics.add.image(x, y, AssetKeys.DefenseObjects, frame);
     drop.setDisplaySize(value >= 4 ? 28 : 22, value >= 4 ? 28 : 22);
     drop.body?.setCircle(12);
     drop.setVelocity(Phaser.Math.Between(-18, 18), Phaser.Math.Between(-18, 18));
     this.drops.add(drop);
     this.dropActors.set(drop, {
+      kind,
       value,
       expiresAt: this.time.now + defenseBalance.partDespawnMs,
     });
@@ -692,21 +1006,44 @@ export class GameScene extends Phaser.Scene {
   }
 
   private pickSpawnPoint(): Phaser.Math.Vector2 {
-    const side = (this.stageIndex + Phaser.Math.Between(0, 2)) % 4;
-    const top = 96;
-    const bottom = defenseBalance.world.height - 96;
-    const left = 96;
-    const right = defenseBalance.world.width - 96;
+    return new Phaser.Math.Vector2(
+      this.enemyBase.x + Phaser.Math.Between(-72, 72),
+      this.enemyBase.y + Phaser.Math.Between(72, 156),
+    );
+  }
 
-    if (side === 0) return new Phaser.Math.Vector2(Phaser.Math.Between(left, right), top);
-    if (side === 1) return new Phaser.Math.Vector2(right, Phaser.Math.Between(top, bottom));
-    if (side === 2) return new Phaser.Math.Vector2(Phaser.Math.Between(left, right), bottom);
-    return new Phaser.Math.Vector2(left, Phaser.Math.Between(top, bottom));
+  private pickEnemyCaptureTarget(x: number, y: number): RelicPoint | undefined {
+    return this.relicPoints
+      .filter((point) => point.owner !== 'enemy')
+      .sort(
+        (a, b) =>
+          Phaser.Math.Distance.Between(x, y, a.x, a.y) -
+          Phaser.Math.Distance.Between(x, y, b.x, b.y),
+      )[0];
+  }
+
+  private getVisionRadius(): number {
+    return defenseBalance.player.vision + this.upgradeLevels['tank-vision'] * 140;
+  }
+
+  private isVisibleToPlayer(x: number, y: number, radius = this.getVisionRadius()): boolean {
+    if (Phaser.Math.Distance.Between(x, y, this.player.x, this.player.y) <= radius) {
+      return true;
+    }
+
+    if (Phaser.Math.Distance.Between(x, y, this.basePosition.x, this.basePosition.y) <= radius * 0.55) {
+      return true;
+    }
+
+    return this.relicPoints.some(
+      (point) => point.owner === 'player' && Phaser.Math.Distance.Between(x, y, point.x, point.y) <= radius * 0.72,
+    );
   }
 
   private publishHud(): void {
     const nextWave = waves[this.waveIndex];
     const currentStage = this.getCurrentStage();
+    const visionRadius = this.getVisionRadius();
     eventBus.emit(GameEvents.DefenseHudChanged, {
       phase: this.phase,
       activeTab: this.activeTab,
@@ -714,6 +1051,8 @@ export class GameScene extends Phaser.Scene {
       maxWaves: defenseBalance.maxWaves,
       baseHp: this.baseHp,
       maxBaseHp: this.maxBaseHp,
+      playerHp: this.playerHp,
+      maxPlayerHp: defenseBalance.player.maxHp,
       parts: this.parts,
       status: this.status,
       stage: {
@@ -729,9 +1068,18 @@ export class GameScene extends Phaser.Scene {
           y: this.player?.y ?? this.basePosition.y,
         },
         base: { x: this.basePosition.x, y: this.basePosition.y },
-        enemies: Array.from(this.enemyActors.values()).map((enemy) => ({
-          x: enemy.body.x,
-          y: enemy.body.y,
+        enemyBase: { x: this.enemyBase.x, y: this.enemyBase.y },
+        enemies: Array.from(this.enemyActors.values())
+          .filter((enemy) => this.isVisibleToPlayer(enemy.body.x, enemy.body.y, visionRadius))
+          .map((enemy) => ({
+            x: enemy.body.x,
+            y: enemy.body.y,
+          })),
+        relics: this.relicPoints.map((point) => ({
+          x: point.x,
+          y: point.y,
+          owner: point.owner,
+          visible: this.isVisibleToPlayer(point.x, point.y, visionRadius),
         })),
         camera: {
           x: this.cameras.main.scrollX,
@@ -739,6 +1087,7 @@ export class GameScene extends Phaser.Scene {
           width: this.cameras.main.width,
           height: this.cameras.main.height,
         },
+        visionRadius,
       },
       upgrades: upgradeDefinitions.map((definition) => {
         const level = this.upgradeLevels[definition.id];

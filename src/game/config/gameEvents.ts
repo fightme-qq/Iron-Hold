@@ -27,6 +27,8 @@ export type GameEventPayloads = {
     maxWaves: number;
     baseHp: number;
     maxBaseHp: number;
+    playerHp: number;
+    maxPlayerHp: number;
     parts: number;
     status: string;
     stage: {
@@ -39,8 +41,11 @@ export type GameEventPayloads = {
       worldHeight: number;
       player: { x: number; y: number };
       base: { x: number; y: number };
+      enemyBase: { x: number; y: number };
       enemies: Array<{ x: number; y: number }>;
+      relics: Array<{ x: number; y: number; owner: 'neutral' | 'player' | 'enemy'; visible: boolean }>;
       camera: { x: number; y: number; width: number; height: number };
+      visionRadius: number;
     };
     upgrades: Array<{
       id: string;

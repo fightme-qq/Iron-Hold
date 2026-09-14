@@ -2,6 +2,7 @@ export type UpgradeId =
   | 'tank-damage'
   | 'tank-reload'
   | 'tank-speed'
+  | 'tank-vision'
   | 'base-max-hp'
   | 'base-repair'
   | 'base-turret';
@@ -38,17 +39,24 @@ export const defenseBalance = {
   baseHpBonusParts: 1,
   partDespawnMs: 9000,
   player: {
+    maxHp: 5,
     speed: 230,
     reverseSpeed: 145,
     acceleration: 640,
     turnSpeedDeg: 165,
+    vision: 520,
     bulletSpeed: 620,
     fireCooldownMs: 360,
     damage: 1,
   },
+  enemy: {
+    bulletSpeed: 430,
+    fireCooldownMs: 1250,
+    range: 520,
+  },
   world: {
-    width: 2200,
-    height: 1500,
+    width: 3600,
+    height: 2400,
   },
   stages: {
     breakMs: 1800,
@@ -57,6 +65,12 @@ export const defenseBalance = {
     range: 280,
     cooldownMs: 950,
     damage: 1,
+  },
+  relic: {
+    captureRadius: 105,
+    captureSeconds: 3.2,
+    attackRadius: 430,
+    fireCooldownMs: 850,
   },
 } as const;
 
@@ -123,6 +137,15 @@ export const upgradeDefinitions: UpgradeDefinition[] = [
     icon: 'SPD',
     baseCost: 10,
     maxLevel: 2,
+  },
+  {
+    id: 'tank-vision',
+    target: 'tank',
+    title: 'Optics',
+    description: '+140 vision radius',
+    icon: 'VIS',
+    baseCost: 10,
+    maxLevel: 3,
   },
   {
     id: 'base-max-hp',
